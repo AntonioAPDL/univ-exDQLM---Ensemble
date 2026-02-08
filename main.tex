@@ -43,6 +43,7 @@ For $t=1,\dots,T$:
 \item Augmentation latents: $v_t>0$ and $s_t>0$.
 \item Quantile level: $p_0\in(0,1)$.
 \end{itemize}
+Throughout, $\phi(\cdot)$ and $\Phi(\cdot)$ denote the standard normal pdf and cdf; in source form we write them as $\phiN{\cdot}$ and $\PhiN{\cdot}$.
 
 Define the Model A stacked state
 \[
@@ -116,7 +117,7 @@ s_t\sim\N^+(0,1),\label{eq:aug_vs_priors}
 \end{align}
 where
 \begin{align}
-g(\gamma)&=2\,\PhiN{-|\gamma|}\exp(\gamma^2/2),\label{eq:g_gamma}\\
+g(\gamma)&=2\,\PhiN{-\lvert\gamma\rvert}\exp(\gamma^2/2),\label{eq:g_gamma}\\
 p(p_0,\gamma)&=\1(\gamma<0)+\frac{p_0-\1(\gamma<0)}{g(\gamma)},\label{eq:p_map}\\
 A(p)&=\frac{1-2p}{p(1-p)},\qquad
 B(p)=\frac{2}{p(1-p)},\qquad
@@ -464,8 +465,8 @@ with computable parameters
 \chi_{v,t}
 &=
 \kappa_1 S_{\Delta,t}
--2\kappa_4 m_{\Delta,t}\E[s_t]
-+\kappa_5 \E[s_t^2],
+-2\kappa_4 m_{\Delta,t}m_{s,t}
++\kappa_5 m_{s^2,t},
 \label{eq:vb_v_chi}\\
 \psi_{v,t}
 &=
