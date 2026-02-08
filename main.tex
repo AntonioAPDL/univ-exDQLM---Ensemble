@@ -20,8 +20,8 @@
 \newcommand{\Var}{\mathrm{Var}}
 \newcommand{\Cov}{\mathrm{Cov}}
 \newcommand{\logit}{\mathrm{logit}}
-\newcommand{\phiN}{\varphi}
-\newcommand{\PhiN}{\Phi}
+\newcommand{\phiN}[1]{\frac{1}{\sqrt{2\pi}}\exp\!\left(-\frac{#1^2}{2}\right)}
+\newcommand{\PhiN}[1]{\Phi\!\left(#1\right)}
 \newcommand{\tr}{\mathrm{tr}}
 
 \title{Canonical Univariate exDQLM (Model A): Full Derivations for MCMC and VB}
@@ -116,7 +116,7 @@ s_t\sim\N^+(0,1),\label{eq:aug_vs_priors}
 \end{align}
 where
 \begin{align}
-g(\gamma)&=2\,\PhiN(-|\gamma|)\exp(\gamma^2/2),\label{eq:g_gamma}\\
+g(\gamma)&=2\,\PhiN{-|\gamma|}\exp(\gamma^2/2),\label{eq:g_gamma}\\
 p(p_0,\gamma)&=\1(\gamma<0)+\frac{p_0-\1(\gamma<0)}{g(\gamma)},\label{eq:p_map}\\
 A(p)&=\frac{1-2p}{p(1-p)},\qquad
 B(p)=\frac{2}{p(1-p)},\qquad
@@ -307,7 +307,7 @@ p(\sigma\mid\text{rest})
 \sigma^{-(a_\sigma+1+\frac{3T}{2})}
 \exp\!\left(
 -\frac{1}{\sigma}\left[b_\sigma+\sum_{t=1}^T v_t+\sum_{t=1}^T\frac{(y_t^\circ)^2}{2B(p)v_t}\right]
--\sigma\left[\sum_{t=1}^T\frac{\nu_t^2}{2B(p)v_t}\right]
+-\sigma\left[\sum_{t=1}^T\frac{u_t^2}{2B(p)v_t}\right]
 \right).
 \label{eq:cond_sigma_kernel}
 \end{align}
@@ -321,7 +321,7 @@ with
 \begin{align}
 \lambda_\sigma &= -(a_\sigma+\tfrac{3T}{2}),\nonumber\\
 \chi_\sigma &= 2b_\sigma+2\sum_{t=1}^T v_t+\sum_{t=1}^T\frac{(y_t^\circ)^2}{B(p)v_t},\nonumber\\
-\psi_\sigma &= \sum_{t=1}^T\frac{\nu_t^2}{B(p)v_t}.\nonumber
+\psi_\sigma &= \sum_{t=1}^T\frac{u_t^2}{B(p)v_t}.\nonumber
 \end{align}
 
 \subsection{Metropolis--Hastings update for gamma}\label{sec:mh_gamma}
@@ -463,15 +463,19 @@ with computable parameters
 \begin{align}
 \chi_{v,t}
 &=
-\kappa_1 S_{\Delta,t}m_{1/v,t}
--2\kappa_4 m_{\Delta,t}m_{s,t}m_{1/v,t}
-+\kappa_5 m_{s^2,t}m_{1/v,t},
+\kappa_1 S_{\Delta,t}
+-2\kappa_4 m_{\Delta,t}\E[s_t]
++\kappa_5 \E[s_t^2],
 \label{eq:vb_v_chi}\\
 \psi_{v,t}
 &=
 \kappa_3 + 2\E[1/\sigma].
 \label{eq:vb_v_psi}
 \end{align}
+Derivation note: by the CAVI rule \eqref{eq:cavi_rule}, $q(v_t)$ is derived from
+$\E_{-v_t}[\log p(y_t\mid\cdot)+\log p(v_t\mid\sigma)]$, so the coefficients
+$\chi_{v,t}$ and $\psi_{v,t}$ cannot depend on $\E[1/v_t]$ itself. Including
+$m_{1/v,t}$ would make the update circular.
 
 \subsection{CAVI update for q(s\_t)}\label{sec:vb_s}
 
@@ -524,7 +528,7 @@ so
 
 \paragraph{Truncated normal moments.}
 For $S\sim\N^+(m,V)$, define $\tau=\sqrt V$, $\alpha=m/\tau$, and
-$\rho(\alpha)=\phiN(\alpha)/\PhiN(\alpha)$ (Mills ratio). Then
+$\rho(\alpha)=\phiN{\alpha}/\PhiN{\alpha}$ (Mills ratio). Then
 \begin{align}
 \E[S] &= m + \tau\rho(\alpha),\label{eq:tn_Es}\\
 \E[S^2] &= V + m^2 + m\tau\rho(\alpha).
@@ -579,7 +583,7 @@ Define $\tilde f(\sigma,\gamma)$ (up to constants independent of $(\sigma,\gamma
 \begin{align}
 \tilde f(\sigma,\gamma)
 =
-&-(a_\sigma+1+\tfrac{3T}{2})\log\sigma - \frac{b_\sigma}{\sigma}
+&-(a_\sigma+1+\tfrac{3T}{2})\log\sigma - \frac{b_\sigma}{\sigma} - \frac{D_3}{\sigma}
 -\frac{T}{2}\log B(p)\nonumber\\
 &-\frac{D_1}{2\sigma B(p)} + \frac{A(p)D_2}{\sigma B(p)} - \frac{A(p)^2D_3}{2\sigma B(p)}
 +\frac{C(p,\gamma)|\gamma|D_4}{B(p)}\nonumber\\
@@ -588,6 +592,8 @@ Define $\tilde f(\sigma,\gamma)$ (up to constants independent of $(\sigma,\gamma
 +\log p(\gamma).
 \label{eq:f_tilde}
 \end{align}
+The term $-D_3/\sigma$ is the contribution of $-\sum_{t=1}^T \E[v_t]/\sigma$ from
+$\E[\log p(v_t\mid\sigma)]$ with $D_3=\sum_{t=1}^T\E[v_t]$.
 Then the transformed objective is
 \begin{equation}
 \ell(u,\xi)=\tilde f\big(\sigma(u),\gamma(\xi)\big)+u+\log\left|\frac{d\gamma}{d\xi}\right|.
@@ -757,8 +763,8 @@ $\E[\log p(\gamma)]$ is computed under the Laplace--Delta block by quadrature in
 \label{eq:Hv}\\
 \mathcal H_{s_t}
 =
-&\frac12\log(2\pi e V_{s,t}) + \log\PhiN\!\left(\frac{m_{s,t}}{\sqrt{V_{s,t}}}\right)
--\frac12\frac{m_{s,t}}{\sqrt{V_{s,t}}}\frac{\phiN(m_{s,t}/\sqrt{V_{s,t}})}{\PhiN(m_{s,t}/\sqrt{V_{s,t}})},
+&\frac12\log(2\pi e V_{s,t}) + \log\PhiN{m_{s,t}/\sqrt{V_{s,t}}}
+-\frac12\frac{m_{s,t}}{\sqrt{V_{s,t}}}\frac{\phiN{m_{s,t}/\sqrt{V_{s,t}}}}{\PhiN{m_{s,t}/\sqrt{V_{s,t}}}},
 \label{eq:Hs}\\
 \mathcal H_{\alpha}
 =
