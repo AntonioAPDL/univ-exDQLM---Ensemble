@@ -7,19 +7,23 @@
 \usepackage{amsmath,amssymb,amsthm,bm,mathtools}
 \usepackage[hidelinks]{hyperref}
 
+% --- Basic operators ---
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\1}{\mathbb{I}}
 \newcommand{\N}{\mathcal{N}}
 \newcommand{\IG}{\mathrm{InvGamma}}
 \newcommand{\Exp}{\mathrm{Exp}}
 \newcommand{\GIG}{\mathrm{GIG}}
+\newcommand{\TN}{\mathrm{TN}} % truncated normal
 \newcommand{\diag}{\mathrm{diag}}
 \newcommand{\T}{\mathsf{T}}
 \newcommand{\PhiN}{\Phi}
 \newcommand{\E}{\mathbb{E}}
 \newcommand{\Var}{\mathrm{Var}}
+\newcommand{\Cov}{\mathrm{Cov}}
+\newcommand{\logit}{\mathrm{logit}}
 
-\title{Canonical Univariate exDQLM (Model A): Specification and Computable Updates}
+\title{Canonical Univariate exDQLM (Model A): Specification and Computable Inference}
 \date{}
 
 \begin{document}
@@ -39,121 +43,414 @@ For $t=1,\dots,T$:
 \item exAL parameters: $\sigma>0$, $\gamma\in(L,U)$.
 \end{itemize}
 
-\section{Model A hierarchy}
+Throughout, $p=p(p_0,\gamma)\in(0,1)$ and the functions $A(p),B(p),C(p,\gamma)$ are defined in
+Section~\ref{sec:exal_aug}. Bold lower-case denotes vectors, bold upper-case denotes matrices. For
+a symmetric positive definite matrix $\bm M$, $\bm M^{-1}$ denotes the linear-solve operation (never
+formed explicitly in computation).
+
+\section{Model A hierarchy and stacked DLM form}\label{sec:modelA}
 
 The baseline univariate model is
 \begin{align}
 y_t \mid \bm\theta_t,\zeta_t,\sigma,\gamma
-&\sim \mathrm{exAL}_{p_0}(\bm F_t^\T \bm\theta_t + \zeta_t,\sigma,\gamma), \label{eq:obs}\
+&\sim \mathrm{exAL}_{p_0}(\bm F_t^\T \bm\theta_t + \zeta_t,\sigma,\gamma), \label{eq:obs}\\
 \bm\theta_t \mid \bm\theta_{t-1}
-&\sim \N(\bm G_t\bm\theta_{t-1},\bm W_t^\theta),\
+&\sim \N(\bm G_t\bm\theta_{t-1},\bm W_t^\theta),\label{eq:theta_evol}\\
 \zeta_t \mid \zeta_{t-1},\bm\psi_t
-&\sim \N(\lambda\zeta_{t-1}+\bm x_t^\T\bm\psi_t,w_t^\zeta),\
+&\sim \N(\lambda\zeta_{t-1}+\bm x_t^\T\bm\psi_t,w_t^\zeta),\label{eq:zeta_evol}\\
 \bm\psi_t \mid \bm\psi_{t-1}
-&\sim \N(\bm\psi_{t-1},\bm W_t^\psi).
+&\sim \N(\bm\psi_{t-1},\bm W_t^\psi).\label{eq:psi_evol}
 \end{align}
 
-Define stacked state
-\[
-\bm\alpha_t=(\bm\theta_t^\T,\zeta_t,\bm\psi_t^\T)^\T\in\R^{q+1+m},
-\qquad
-\tilde{\bm F}_t=\begin{bmatrix}\bm F_t\\1\\\bm 0_m\end{bmatrix},
-\]
-so $y_t\mid\bm\alpha_t,\sigma,\gamma\sim\mathrm{exAL}_{p_0}(\tilde{\bm F}_t^\T\bm\alpha_t,\sigma,\gamma)$.
+\paragraph{Initial state prior.}
+Let $\bm\alpha_t=(\bm\theta_t^\T,\zeta_t,\bm\psi_t^\T)^\T\in\R^{d}$ with $d=q+1+m$. Assume
+\begin{equation}
+\bm\alpha_0 \sim \N(\bm m_0,\bm C_0),\qquad \bm C_0\succ 0.\label{eq:alpha0_prior}
+\end{equation}
 
-\section{exAL augmentation}
+\paragraph{Stacked linear-Gaussian evolution.}
+Define the stacked design vector
+\[
+\tilde{\bm F}_t=
+\begin{bmatrix}
+\bm F_t\\ 1\\ \bm 0_m
+\end{bmatrix}\in\R^{d},
+\qquad
+\eta_t=\tilde{\bm F}_t^\T\bm\alpha_t.
+\]
+The stacked state evolution is
+\begin{equation}
+\bm\alpha_t \mid \bm\alpha_{t-1} \sim \N(\bm G_t^\alpha \bm\alpha_{t-1},\bm W_t^\alpha),\label{eq:alpha_evol}
+\end{equation}
+with block forms
+\begin{equation}
+\bm G_t^\alpha=
+\begin{bmatrix}
+\bm G_t & \bm 0 & \bm 0\\
+\bm 0^\T & \lambda & \bm x_t^\T\\
+\bm 0 & \bm 0 & \bm I_m
+\end{bmatrix},
+\qquad
+\bm W_t^\alpha=\mathrm{blockdiag}\!\left(\bm W_t^\theta,\;w_t^\zeta,\;\bm W_t^\psi\right).\label{eq:Galpha_Walpha}
+\end{equation}
+
+\paragraph{Assumption on evolution variances (Model A baseline).}
+Unless otherwise stated, $\{\bm W_t^\theta\}_{t=1}^T$, $\{w_t^\zeta\}_{t=1}^T$, and $\{\bm W_t^\psi\}_{t=1}^T$ are treated as fixed hyperparameters.
+(If they are inferred, inverse-Wishart / inverse-gamma priors and Gibbs updates can be added as an optional module.)
+
+\section{exAL augmentation}\label{sec:exal_aug}
 
 For each $t$, introduce $v_t>0$ and $s_t>0$:
 \begin{align}
 y_t\mid\eta_t,\sigma,\gamma,v_t,s_t
 &\sim \N\!\left(\eta_t + C(p,\gamma)\,\sigma|\gamma|s_t + A(p)v_t,\;\sigma B(p)v_t\right),\label{eq:aug_y}\\
-v_t\mid\sigma &\sim \Exp(\text{rate}=1/\sigma),\qquad s_t\sim\N^+(0,1),
+v_t\mid\sigma &\sim \Exp(\text{rate}=1/\sigma),\qquad s_t\sim\N^+(0,1),\label{eq:prior_vs}
 \end{align}
 with $\eta_t=\tilde{\bm F}_t^\T\bm\alpha_t$ and
 \begin{align}
-g(\gamma)&=2\PhiN(-|\gamma|)\exp(\gamma^2/2),\\
-p(p_0,\gamma)&=\1(\gamma<0)+\frac{p_0-\1(\gamma<0)}{g(\gamma)},\\
-A(p)&=\frac{1-2p}{p(1-p)},\quad B(p)=\frac{2}{p(1-p)},\quad C(p,\gamma)=\big(\1(\gamma>0)-p\big)^{-1}.
+g(\gamma)&=2\PhiN(-|\gamma|)\exp(\gamma^2/2),\label{eq:g_gamma}\\
+p(p_0,\gamma)&=\1(\gamma<0)+\frac{p_0-\1(\gamma<0)}{g(\gamma)},\label{eq:p_map}\\
+A(p)&=\frac{1-2p}{p(1-p)},\quad B(p)=\frac{2}{p(1-p)},\quad C(p,\gamma)=\big(\1(\gamma>0)-p\big)^{-1}.\label{eq:ABC}
 \end{align}
 
 Priors:
-\[
+\begin{equation}
 \sigma\sim\IG(a_\sigma,b_\sigma),
 \qquad
-\gamma\sim t_{(L,U)}(m_\gamma,s_\gamma;\nu_\gamma).
-\]
+\gamma\sim t_{(L,U)}(m_\gamma,s_\gamma;\nu_\gamma).\label{eq:priors_sigma_gamma}
+\end{equation}
 
-\section{Full conditionals (up to proportionality)}
+\section{Conditionally Gaussian DLM form}\label{sec:cond_gauss_dlm}
 
-\subsection{Conditional Update for Latent v}
+Conditioning on $(v_t,s_t,\sigma,\gamma)$ yields a linear-Gaussian observation equation. Define
+\begin{equation}
+\tilde y_t := y_t - A(p)v_t - C(p,\gamma)\,\sigma|\gamma|\,s_t,
+\qquad
+R_t := \sigma B(p)\,v_t.\label{eq:ytilde_R}
+\end{equation}
+Then
+\begin{equation}
+\tilde y_t \mid \bm\alpha_t, v_t,s_t,\sigma,\gamma \sim
+\N(\tilde{\bm F}_t^\T\bm\alpha_t,\;R_t).\label{eq:pseudo_obs}
+\end{equation}
+Together, \eqref{eq:pseudo_obs} and \eqref{eq:alpha_evol} define a standard (conditionally) Gaussian DLM, enabling Kalman filtering/smoothing and forward-filtering backward-sampling (FFBS).
 
-With $r_t=y_t-\eta_t-C\sigma|\gamma|s_t$,
+\section{Augmented joint posterior and MCMC inference}\label{sec:mcmc}
+
+\subsection{Augmented joint (Model A)}
+Let $\bm y=(y_1,\dots,y_T)$, $\bm v=(v_1,\dots,v_T)$, $\bm s=(s_1,\dots,s_T)$, and $\bm\alpha_{0:T}=(\bm\alpha_0,\dots,\bm\alpha_T)$.
+The augmented posterior is, up to a normalizing constant,
+\begin{equation}
+p(\bm\alpha_{0:T},\bm v,\bm s,\sigma,\gamma\mid \bm y)
+\propto
+p(\bm\alpha_0)\prod_{t=1}^T p(\bm\alpha_t\mid\bm\alpha_{t-1})
+\prod_{t=1}^T p(y_t\mid \bm\alpha_t,v_t,s_t,\sigma,\gamma)\,p(v_t\mid\sigma)\,p(s_t)\,
+p(\sigma)\,p(\gamma).\label{eq:aug_joint}
+\end{equation}
+
+\subsection{Gibbs/MH sweep}
+A valid MCMC scheme alternates:
+\begin{enumerate}
+\item Sample each $v_t\mid \bm\alpha_t,s_t,\sigma,\gamma,y_t$ (GIG; Section~\ref{sec:cond_v}).
+\item Sample each $s_t\mid \bm\alpha_t,v_t,\sigma,\gamma,y_t$ (truncated normal; Section~\ref{sec:cond_s}).
+\item Sample $\bm\alpha_{0:T}\mid \bm v,\bm s,\sigma,\gamma,\bm y$ via FFBS (Section~\ref{sec:ffbs}).
+\item Sample $\sigma\mid \bm\alpha_{0:T},\bm v,\bm s,\gamma,\bm y$ (GIG; Section~\ref{sec:cond_sigma}).
+\item Sample $\gamma\mid \bm\alpha_{0:T},\bm v,\bm s,\sigma,\bm y$ via MH on an unconstrained transform (Section~\ref{sec:mh_gamma}).
+\end{enumerate}
+
+\subsection{Conditional update for latent $v$}\label{sec:cond_v}
+
+With $r_t=y_t-\eta_t-C(p,\gamma)\sigma|\gamma|s_t$,
 \begin{align}
 p(v_t\mid\text{rest})
-&\propto v_t^{-1/2}\exp\!\left(-\frac{r_t^2}{2\sigma B}\frac{1}{v_t}-\left(\frac{A^2}{2\sigma B}+\frac{1}{\sigma}\right)v_t\right)\1(v_t>0)\\
-&\equiv \GIG\!\left(\lambda=\tfrac12,\chi=\frac{r_t^2}{\sigma B},\psi=\frac{A^2}{\sigma B}+\frac{2}{\sigma}\right).\label{eq:cond_v}
+&\propto v_t^{-1/2}\exp\!\left(-\frac{r_t^2}{2\sigma B(p)}\frac{1}{v_t}-\left(\frac{A(p)^2}{2\sigma B(p)}+\frac{1}{\sigma}\right)v_t\right)\1(v_t>0)\nonumber\\
+&\equiv \GIG\!\left(\lambda=\tfrac12,\chi=\frac{r_t^2}{\sigma B(p)},\psi=\frac{A(p)^2}{\sigma B(p)}+\frac{2}{\sigma}\right).\label{eq:cond_v}
 \end{align}
 
-\subsection{Conditional Update for Latent s}
+\subsection{Conditional update for latent $s$}\label{sec:cond_s}
 
-Let $y_t^\circ=y_t-\eta_t-Av_t$, $d=C\sigma|\gamma|$, and $R_t=\sigma Bv_t$.
+Let $y_t^\circ=y_t-\eta_t-A(p)v_t$, $d=C(p,\gamma)\sigma|\gamma|$, and $R_t=\sigma B(p)v_t$.
 Then
 \[
 s_t\mid\text{rest}\sim\N^+(m_{s,t},V_{s,t}),
 \]
 with
 \begin{align}
-V_{s,t}&=\left(1+\frac{d^2}{R_t}\right)^{-1}=\left(1+\frac{C^2\sigma\gamma^2}{Bv_t}\right)^{-1},\\
-m_{s,t}&=V_{s,t}\left(\frac{d\,y_t^\circ}{R_t}\right)=V_{s,t}\left(\frac{C|\gamma|}{Bv_t}y_t^\circ\right).\label{eq:cond_s}
+V_{s,t}&=\left(1+\frac{d^2}{R_t}\right)^{-1}=\left(1+\frac{C(p,\gamma)^2\,\sigma\gamma^2}{B(p)\,v_t}\right)^{-1},\label{eq:cond_s_V}\\
+m_{s,t}&=V_{s,t}\left(\frac{d\,y_t^\circ}{R_t}\right)=V_{s,t}\left(\frac{C(p,\gamma)|\gamma|}{B(p)\,v_t}\,y_t^\circ\right).\label{eq:cond_s_m}
 \end{align}
 
-\subsection{Conditional Update for State Path}
+\subsection{FFBS for the stacked state path}\label{sec:ffbs}
 
-Conditioning on $(v_{1:T},s_{1:T},\sigma,\gamma)$ gives Gaussian pseudo-observations:
+Conditioning on $(\bm v,\bm s,\sigma,\gamma)$ yields the Gaussian DLM \eqref{eq:pseudo_obs}--\eqref{eq:alpha_evol}.
+Define the one-step predictive moments:
+\begin{align}
+\bm a_t &= \bm G_t^\alpha \bm m_{t-1},\label{eq:kalman_a}\\
+\bm R_t^\alpha &= \bm G_t^\alpha \bm C_{t-1}(\bm G_t^\alpha)^\T + \bm W_t^\alpha,\label{eq:kalman_R}\\
+f_t &= \tilde{\bm F}_t^\T \bm a_t,\label{eq:kalman_f}\\
+Q_t &= \tilde{\bm F}_t^\T \bm R_t^\alpha \tilde{\bm F}_t + R_t,\label{eq:kalman_Q}\\
+\bm A_t &= \bm R_t^\alpha \tilde{\bm F}_t\, Q_t^{-1}.\label{eq:kalman_A}
+\end{align}
+Given pseudo-observations $\tilde y_t$ and variances $R_t$ (Section~\ref{sec:cond_gauss_dlm}), the filtering updates are
+\begin{align}
+\bm m_t &= \bm a_t + \bm A_t(\tilde y_t - f_t),\label{eq:kalman_m}\\
+\bm C_t &= \bm R_t^\alpha - \bm A_t \bm A_t^\T Q_t.\label{eq:kalman_C}
+\end{align}
+
+\paragraph{Backward sampling.}
+First sample $\bm\alpha_T\sim\N(\bm m_T,\bm C_T)$.
+Then for $t=T-1,\dots,0$ define
+\begin{equation}
+\bm B_t = \bm C_t(\bm G_{t+1}^\alpha)^\T (\bm R_{t+1}^\alpha)^{-1},\label{eq:backward_B}
+\end{equation}
+and sample
+\begin{equation}
+\bm\alpha_t\mid \bm\alpha_{t+1},\text{rest} \sim
+\N\!\Big(\bm m_t + \bm B_t(\bm\alpha_{t+1}-\bm a_{t+1}),\; \bm C_t - \bm B_t \bm R_{t+1}^\alpha \bm B_t^\T\Big).\label{eq:backward_alpha}
+\end{equation}
+In practice, $(\bm R_{t+1}^\alpha)^{-1}$ is implemented via a Cholesky solve.
+
+\subsection{Conditional update for $\sigma$}\label{sec:cond_sigma}
+
+For fixed $\gamma$, $\sigma$ admits a $\GIG$ conditional. Let
 \[
-\tilde y_t=y_t-C\sigma|\gamma|s_t-Av_t,
+\varepsilon_t := y_t-\eta_t-A(p)v_t-C(p,\gamma)\sigma|\gamma|s_t,
 \qquad
-\tilde y_t\mid\bm\alpha_t\sim\N(\tilde{\bm F}_t^\T\bm\alpha_t,\;R_t),
-\qquad
-R_t=\sigma Bv_t.
+R_t=\sigma B(p)\,v_t.
 \]
-Hence the state-path conditional is Gaussian and can be sampled or optimized by FFBS/Kalman smoothing.
-
-\subsection{Conditional Update for Sigma and Gamma}
-
-For fixed $\gamma$, $\sigma$ has a GIG kernel:
+Collecting $\sigma$-dependent terms in the augmented likelihood \eqref{eq:aug_y} and prior \eqref{eq:priors_sigma_gamma} yields the kernel
 \begin{align}
 p(\sigma\mid\text{rest})
-\propto
+&\propto
 \sigma^{-(a_\sigma+1+\frac{3T}{2})}
-\exp\!\left(-\frac{1}{\sigma}\left[b_\sigma+\sum_{t=1}^T v_t+\sum_{t=1}^T\frac{(y_t^\circ)^2}{2Bv_t}\right]-\sigma\left[\sum_{t=1}^T\frac{u_t^2}{2Bv_t}\right]\right),
+\exp\!\left(-\frac{1}{\sigma}\left[b_\sigma+\sum_{t=1}^T v_t+\sum_{t=1}^T\frac{(y_t^\circ)^2}{2B(p)\,v_t}\right]-\sigma\left[\sum_{t=1}^T\frac{u_t^2}{2B(p)\,v_t}\right]\right),\label{eq:cond_sigma_kernel}
 \end{align}
-with $u_t=C|\gamma|s_t$ and $y_t^\circ=y_t-\eta_t-Av_t$.
+where
+\[
+y_t^\circ := y_t-\eta_t-A(p)v_t,\qquad u_t := C(p,\gamma)|\gamma|s_t.
+\]
+Equivalently, in the parameterization $x\sim\GIG(\lambda,\chi,\psi)$ with density proportional to
+$x^{\lambda-1}\exp\{-(\chi/x+\psi x)/2\}$ on $(0,\infty)$,
+\begin{equation}
+\sigma\mid\text{rest}\sim \GIG\!\left(\lambda_\sigma,\chi_\sigma,\psi_\sigma\right),\quad
+\lambda_\sigma=-(a_\sigma+\tfrac{3T}{2}),\quad
+\chi_\sigma=2\Big(b_\sigma+\sum_{t=1}^T v_t+\sum_{t=1}^T\frac{(y_t^\circ)^2}{2B(p)\,v_t}\Big),\quad
+\psi_\sigma=2\sum_{t=1}^T\frac{u_t^2}{2B(p)\,v_t}.\label{eq:cond_sigma_gig}
+\end{equation}
 
-For $\gamma$, the conditional is nonconjugate due to $p(p_0,\gamma)$ in $(A,B,C)$:
+\subsection{Metropolis--Hastings update for $\gamma$}\label{sec:mh_gamma}
+
+The conditional for $\gamma$ is nonconjugate due to the mapping $\gamma\mapsto p(p_0,\gamma)$ in $(A,B,C)$:
 \begin{align}
 p(\gamma\mid\text{rest})
-\propto
-t_{(L,U)}(\gamma\mid m_\gamma,s_\gamma;\nu_\gamma)
-\prod_{t=1}^T (\sigma Bv_t)^{-1/2}
-\exp\!\left(-\sum_{t=1}^T\frac{(y_t-\eta_t-Av_t-C\sigma|\gamma|s_t)^2}{2\sigma Bv_t}\right).
-\label{eq:cond_gamma}
+\propto\;
+&t_{(L,U)}(\gamma\mid m_\gamma,s_\gamma;\nu_\gamma)
+\prod_{t=1}^T (\sigma B(p)\,v_t)^{-1/2}\nonumber\\
+&\times \exp\!\left(-\sum_{t=1}^T\frac{(y_t-\eta_t-A(p)v_t-C(p,\gamma)\sigma|\gamma|s_t)^2}{2\sigma B(p)\,v_t}\right).\label{eq:cond_gamma}
 \end{align}
 
-\section{Computable update blocks}
+\paragraph{Unconstrained transform.}
+Let
+\[
+z=\logit\!\left(\frac{\gamma-L}{U-L}\right)\in\R,\qquad
+\gamma(z)=L+(U-L)\frac{e^z}{1+e^z},
+\qquad
+\log\left|\frac{d\gamma}{dz}\right|=\log(U-L)+z-2\log(1+e^z).
+\]
+Use a random-walk proposal $z'\sim\N(z,\tau_\gamma^2)$ and set $\gamma'=\gamma(z')$.
+The log acceptance ratio is
+\begin{equation}
+\log r
+=
+\Big[\log \pi(\gamma') + \log\Big|\frac{d\gamma'}{dz'}\Big|\Big]
+-
+\Big[\log \pi(\gamma) + \log\Big|\frac{d\gamma}{dz}\Big|\Big],\label{eq:mh_logr}
+\end{equation}
+where $\pi(\gamma)$ denotes the right-hand side of \eqref{eq:cond_gamma} evaluated at $\gamma$ (up to a constant).
+
+\section{Mean-field variational Bayes and CAVI}\label{sec:vb}
+
+\subsection{Factorization and generic update}
+We consider a mean-field approximation
+\begin{equation}
+q(\bm\alpha_{0:T},\bm v,\bm s,\sigma,\gamma)
+=
+q(\bm\alpha_{0:T})\prod_{t=1}^T q(v_t)\prod_{t=1}^T q(s_t)\,q(\sigma,\gamma).\label{eq:vb_factorization}
+\end{equation}
+Coordinate ascent variational inference (CAVI) updates each factor by
+\begin{equation}
+\log q_j(\cdot)\leftarrow \E_{-j}\big[\log p(\bm\alpha_{0:T},\bm v,\bm s,\sigma,\gamma,\bm y)\big] + \text{const},\label{eq:cavi_rule}
+\end{equation}
+where $\E_{-j}$ is expectation with respect to all factors other than $q_j$.
+
+\subsection{$q(\bm\alpha_{0:T})$: Gaussian smoothing with VB pseudo-observations}\label{sec:vb_alpha}
+
+The terms involving $\bm\alpha_{0:T}$ enter through the Gaussian evolution prior and the conditionally Gaussian likelihood \eqref{eq:pseudo_obs}. After taking expectations over $(\bm v,\bm s,\sigma,\gamma)$, the variational factor $q(\bm\alpha_{0:T})$ remains Gaussian and corresponds to a DLM with time-varying precision.
+Define
+\begin{equation}
+\phi_t := \E\!\left[\frac{1}{\sigma B(p)\,v_t}\right],\qquad
+y_t^{\mathrm{VB}} :=
+\frac{
+\E\!\left[\frac{y_t-A(p)v_t-C(p,\gamma)\sigma|\gamma|s_t}{\sigma B(p)\,v_t}\right]
+}{\phi_t}.\label{eq:vb_phi_y}
+\end{equation}
+Then the log-density of $q(\bm\alpha_{0:T})$ is, up to a constant,
+\begin{equation}
+\log q(\bm\alpha_{0:T})
+=
+-\frac12\sum_{t=1}^T \phi_t\big(y_t^{\mathrm{VB}}-\tilde{\bm F}_t^\T\bm\alpha_t\big)^2
++\log p(\bm\alpha_{0:T}) + \text{const},\label{eq:vb_alpha_quad}
+\end{equation}
+which is the posterior of a linear-Gaussian state space model with observation variance $\phi_t^{-1}$.
+Hence, $q(\bm\alpha_{0:T})$ can be computed by standard Kalman smoothing recursions with $(\tilde y_t,R_t)$ replaced by $(y_t^{\mathrm{VB}},\phi_t^{-1})$.
+
+\subsection{$q(v_t)$: GIG form}\label{sec:vb_v}
+
+Fix $t$. Collecting terms in the expected complete log joint involving $v_t$ yields
+\begin{equation}
+q(v_t)=\GIG(\lambda_v,\chi_{v,t},\psi_{v,t}),\qquad \lambda_v=\tfrac12,\label{eq:vb_v_gig}
+\end{equation}
+with $\chi_{v,t}$ and $\psi_{v,t}$ obtained by replacing $(\eta_t,s_t,\sigma,\gamma)$ in \eqref{eq:cond_v} by their expectations under the current variational factors. A computable choice is
+\begin{align}
+\chi_{v,t}
+&=
+\E\!\left[\frac{(y_t-\eta_t-C(p,\gamma)\sigma|\gamma|s_t)^2}{\sigma B(p)}\right],\label{eq:vb_v_chi}\\
+\psi_{v,t}
+&=
+\E\!\left[\frac{A(p)^2}{\sigma B(p)}+\frac{2}{\sigma}\right].\label{eq:vb_v_psi}
+\end{align}
+Closed-form expansions of \eqref{eq:vb_v_chi} require second moments of $(\eta_t,s_t)$ under $q(\bm\alpha_{0:T})$ and $q(s_t)$; see Appendix~\ref{sec:appendix_moments}.
+
+\subsection{$q(s_t)$: truncated normal form}\label{sec:vb_s}
+
+Similarly, the factor $q(s_t)$ remains truncated normal:
+\begin{equation}
+q(s_t)=\N^+\!\big(m_{s,t}^{\mathrm{VB}},V_{s,t}^{\mathrm{VB}}\big),\label{eq:vb_s_form}
+\end{equation}
+with
+\begin{align}
+V_{s,t}^{\mathrm{VB}}
+&=\left(1+\E\!\left[\frac{(C(p,\gamma)\sigma|\gamma|)^2}{\sigma B(p)\,v_t}\right]\right)^{-1},\label{eq:vb_s_V}\\
+m_{s,t}^{\mathrm{VB}}
+&=
+V_{s,t}^{\mathrm{VB}}\;
+\E\!\left[\frac{C(p,\gamma)\sigma|\gamma|\,(y_t-\eta_t-A(p)v_t)}{\sigma B(p)\,v_t}\right].\label{eq:vb_s_m}
+\end{align}
+
+\subsection{$q(\sigma,\gamma)$ via Laplace--Delta}\label{sec:vb_sigmagamma}
+
+We approximate $q(\sigma,\gamma)$ using a Laplace approximation in unconstrained coordinates, and then apply a delta method to compute the moments required in Sections~\ref{sec:vb_alpha}--\ref{sec:vb_s}. Details are given in Section~\ref{sec:laplace_delta}.
+
+\section{Laplace--Delta approximation for $q(\sigma,\gamma)$}\label{sec:laplace_delta}
+
+\subsection{Unconstrained coordinates}
+Let
+\[
+\xi=\log\sigma\in\R,\qquad
+z=\logit\!\left(\frac{\gamma-L}{U-L}\right)\in\R,
+\qquad
+\gamma(z)=L+(U-L)\frac{e^z}{1+e^z}.
+\]
+Define the expected complete log joint (including priors and Jacobians)
+\begin{equation}
+\ell(\xi,z)
+=
+\E_{-\{\sigma,\gamma\}}\!\Big[\log p(\bm y,\bm\alpha_{0:T},\bm v,\bm s,\sigma,\gamma)\Big]
++\log p(\sigma)+\log p(\gamma)
++\log\left|\frac{d\sigma}{d\xi}\right|
++\log\left|\frac{d\gamma}{dz}\right|,\label{eq:ell_xi_z}
+\end{equation}
+where $\sigma=e^\xi$ and $\log|d\sigma/d\xi|=\xi$.
+
+\subsection{Laplace approximation}
+Let $(\hat\xi,\hat z)=\arg\max_{(\xi,z)\in\R^2}\ell(\xi,z)$ and let
+\[
+\bm H = -\nabla^2 \ell(\hat\xi,\hat z)\in\R^{2\times 2}.
+\]
+Then the Laplace approximation is
+\begin{equation}
+(\xi,z)\ \dot{\sim}\ \N\big((\hat\xi,\hat z),\bm H^{-1}\big),\label{eq:laplace_normal}
+\end{equation}
+where $\dot{\sim}$ denotes approximation. Required moments of $\sigma=e^\xi$ and smooth functions of $\gamma(z)$ are obtained via lognormal identities and delta method expansions.
+
+\section{Evidence lower bound (ELBO)}\label{sec:elbo}
+
+The ELBO is
+\begin{align}
+\mathcal L(q)
+&=
+\E_q[\log p(\bm y\mid\bm\alpha_{1:T},\bm v,\bm s,\sigma,\gamma)]
++\E_q[\log p(\bm v\mid\sigma)]
++\E_q[\log p(\bm s)]
++\E_q[\log p(\bm\alpha_{0:T})]
++\E_q[\log p(\sigma)]
++\E_q[\log p(\gamma)]\nonumber\\
+&\quad
+-\E_q[\log q(\bm v)]
+-\E_q[\log q(\bm s)]
+-\E_q[\log q(\bm\alpha_{0:T})]
+-\E_q[\log q(\sigma,\gamma)].\label{eq:elbo_decomp}
+\end{align}
+All terms are available in closed form except those involving $q(\sigma,\gamma)$ when evaluated through the Laplace--Delta approximation; in that case, expectations under \eqref{eq:laplace_normal} are computed by delta method.
+
+\appendix
+
+\section{Moments and entropy terms}\label{sec:appendix_moments}
+
+This appendix collects computable moments needed for MCMC diagnostics and VB updates.
+
+\subsection{GIG moments}
+Let $X\sim\GIG(\lambda,\chi,\psi)$ with density proportional to
+$x^{\lambda-1}\exp\{-(\chi/x+\psi x)/2\}$ on $(0,\infty)$.
+Then for any $r\in\R$ such that moments exist,
+\begin{equation}
+\E[X^r] = \left(\frac{\chi}{\psi}\right)^{r/2}\frac{K_{\lambda+r}(\sqrt{\chi\psi})}{K_\lambda(\sqrt{\chi\psi})},\label{eq:gig_moment}
+\end{equation}
+where $K_\nu(\cdot)$ is the modified Bessel function of the second kind. In particular,
+\[
+\E[X]=\left(\frac{\chi}{\psi}\right)^{1/2}\frac{K_{\lambda+1}(\sqrt{\chi\psi})}{K_\lambda(\sqrt{\chi\psi})},
+\quad
+\E[X^{-1}]=\left(\frac{\psi}{\chi}\right)^{1/2}\frac{K_{\lambda-1}(\sqrt{\chi\psi})}{K_\lambda(\sqrt{\chi\psi})}.
+\]
+Stable computation is performed using $\log K_\nu(\cdot)$ or scaled Bessel evaluations.
+
+\subsection{Truncated normal moments}
+Let $S\sim\N(\mu,\tau^2)$ truncated to $(0,\infty)$, written $S\sim \N^+(\mu,\tau^2)$.
+Define $\alpha=\mu/\tau$ and the Mills ratio $\rho(\alpha)=\varphi(\alpha)/\Phi(\alpha)$, where
+$\varphi$ and $\Phi$ are the standard normal pdf and cdf.
+Then
+\begin{align}
+\E[S] &= \mu + \tau\,\rho(\alpha),\label{eq:tn_mean}\\
+\Var(S) &= \tau^2\Big(1-\rho(\alpha)\big(\rho(\alpha)-\alpha\big)\Big).\label{eq:tn_var}
+\end{align}
+Numerical stability for large negative $\alpha$ uses log-cdf and log-pdf evaluations.
+
+\subsection{Gaussian entropy}
+If $\bm Z\sim\N(\bm m,\bm C)$ in $\R^d$ with $\bm C\succ 0$, then
+\begin{equation}
+\mathsf H(\bm Z)= -\E[\log q(\bm Z)] = \tfrac12\log\!\big((2\pi e)^d\det(\bm C)\big).\label{eq:gauss_entropy}
+\end{equation}
+
+\subsection{Laplace normal entropy}
+Under \eqref{eq:laplace_normal}, the approximate entropy is
+\[
+\mathsf H(\xi,z)\approx \tfrac12\log\!\big((2\pi e)^2\det(\bm H^{-1})\big).
+\]
+
+\section{Computable update blocks}\label{sec:computable_blocks}
 
 In implementation, use stable operations:
 \begin{itemize}
-\item Evaluate $K_\nu(\cdot)$ in log or scaled form for GIG moments.
-\item Enforce positivity floors for $v_t$, $R_t$, and variances.
-\item For $\N^+$ moments, evaluate Mills ratio stably for extreme truncation.
-\item Optimize $\gamma$ only inside $(L,U)$ and optimize $\log\sigma$ on $\R$.
-\item Use Cholesky/solve routines in the state smoother; avoid explicit matrix inverses.
+\item Evaluate $K_\nu(\cdot)$ in log or scaled form for GIG moments \eqref{eq:gig_moment}.
+\item Enforce positivity floors for $v_t$, $R_t$, and variances; never form explicit inverses.
+\item For $\N^+$ moments, evaluate Mills ratio stably (log-domain when needed).
+\item Optimize $\gamma$ only inside $(L,U)$ by unconstrained $z$; optimize $\sigma$ on $\xi=\log\sigma$.
+\item Use Cholesky/solve routines in FFBS recursions; avoid explicit matrix inverses.
 \end{itemize}
 
 \section{Audit statement}
 
-This manuscript is the canonical univariate-only Model A specification.
-All Model B/Model C, ensemble, retrospective, and multivariate components have been retired from the active document.
+This manuscript is the canonical univariate-only Model A specification and inference template.
+All Model B/Model C, ensemble, retrospective, and multivariate components are excluded by design.
 
 \end{document}
