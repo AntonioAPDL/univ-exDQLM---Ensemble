@@ -1,4 +1,22 @@
+# LaTeX artifacts
 *.aux
-*.log
 *.out
+*.toc
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# Generated PDFs/logs and temp outputs
 *.pdf
+*.log
+tmp/*
+!tmp/.gitkeep
+logs/latex/*
+!logs/latex/.gitkeep
+
+# R artifacts
+.Rhistory
+.RData
+.Rproj.user/
