@@ -28,6 +28,7 @@ It intentionally excludes:
 make test
 make validate
 make latex
+bash scripts/latex_gate.sh
 ```
 
 ## Overleaf integration
