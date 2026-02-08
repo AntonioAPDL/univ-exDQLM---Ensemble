@@ -190,3 +190,8 @@ Legend: `P` = Present, `M` = Missing, `N/A` = Different-model not applicable.
 - Phase 3 (repo-by-repo derivation upgrades): **Applied with compile checks**.
 - Phase 4 content policy (derive, do not hand-wave): **Enforced in edited blocks**.
 - Phase 5 PR packaging: **Pending push/PR creation in this run context**.
+
+### Hardening Wrap-up (Latex Gate + CI)
+- `exDQLM---Ensemble`: PR https://github.com/AntonioAPDL/exDQLM---Ensemble/pull/2 merged at `fb586d5`.
+- `NDLM---Ensemble`: PR https://github.com/AntonioAPDL/NDLM---Ensemble/pull/2 merged at `8517288`.
+- This pass adds per-repo `scripts/latex_gate.sh` and `.github/workflows/latex_gate.yml` so fatal LaTeX regressions are blocked on PRs.
