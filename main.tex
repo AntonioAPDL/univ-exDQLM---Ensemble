@@ -463,15 +463,19 @@ with computable parameters
 \begin{align}
 \chi_{v,t}
 &=
-\kappa_1 S_{\Delta,t}m_{1/v,t}
--2\kappa_4 m_{\Delta,t}m_{s,t}m_{1/v,t}
-+\kappa_5 m_{s^2,t}m_{1/v,t},
+\kappa_1 S_{\Delta,t}
+-2\kappa_4 m_{\Delta,t}\E[s_t]
++\kappa_5 \E[s_t^2],
 \label{eq:vb_v_chi}\\
 \psi_{v,t}
 &=
 \kappa_3 + 2\E[1/\sigma].
 \label{eq:vb_v_psi}
 \end{align}
+Derivation note: by the CAVI rule \eqref{eq:cavi_rule}, $q(v_t)$ is derived from
+$\E_{-v_t}[\log p(y_t\mid\cdot)+\log p(v_t\mid\sigma)]$, so the coefficients
+$\chi_{v,t}$ and $\psi_{v,t}$ cannot depend on $\E[1/v_t]$ itself. Including
+$m_{1/v,t}$ would make the update circular.
 
 \subsection{CAVI update for q(s\_t)}\label{sec:vb_s}
 
