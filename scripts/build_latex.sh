@@ -9,10 +9,12 @@ LOG_FILE="$LOG_DIR/$BASENAME.log"
 
 mkdir -p "$LOG_DIR"
 
-if command -v latexmk >/dev/null 2>&1; then
+LATEXMK_BIN="$(command -v latexmk 2>/dev/null || true)"
+
+if [ -n "$LATEXMK_BIN" ]; then
   (
     cd "$ROOT"
-    latexmk -pdf -interaction=nonstopmode -halt-on-error "$DOC"
+    "$LATEXMK_BIN" -pdf -interaction=nonstopmode -halt-on-error "$DOC"
   ) >"$LOG_FILE" 2>&1
 else
   (

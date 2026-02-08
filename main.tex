@@ -158,7 +158,7 @@ A valid MCMC scheme alternates:
 \item Sample $\gamma\mid \bm\alpha_{0:T},\bm v,\bm s,\sigma,\bm y$ via MH on an unconstrained transform (Section~\ref{sec:mh_gamma}).
 \end{enumerate}
 
-\subsection{Conditional update for latent $v$}\label{sec:cond_v}
+\subsection{Conditional update for latent v}\label{sec:cond_v}
 
 With $r_t=y_t-\eta_t-C(p,\gamma)\sigma|\gamma|s_t$,
 \begin{align}
@@ -167,7 +167,7 @@ p(v_t\mid\text{rest})
 &\equiv \GIG\!\left(\lambda=\tfrac12,\chi=\frac{r_t^2}{\sigma B(p)},\psi=\frac{A(p)^2}{\sigma B(p)}+\frac{2}{\sigma}\right).\label{eq:cond_v}
 \end{align}
 
-\subsection{Conditional update for latent $s$}\label{sec:cond_s}
+\subsection{Conditional update for latent s}\label{sec:cond_s}
 
 Let $y_t^\circ=y_t-\eta_t-A(p)v_t$, $d=C(p,\gamma)\sigma|\gamma|$, and $R_t=\sigma B(p)v_t$.
 Then
@@ -210,7 +210,7 @@ and sample
 \end{equation}
 In practice, $(\bm R_{t+1}^\alpha)^{-1}$ is implemented via a Cholesky solve.
 
-\subsection{Conditional update for $\sigma$}\label{sec:cond_sigma}
+\subsection{Conditional update for sigma}\label{sec:cond_sigma}
 
 For fixed $\gamma$, $\sigma$ admits a $\GIG$ conditional. Let
 \[
@@ -238,7 +238,7 @@ $x^{\lambda-1}\exp\{-(\chi/x+\psi x)/2\}$ on $(0,\infty)$,
 \psi_\sigma=2\sum_{t=1}^T\frac{u_t^2}{2B(p)\,v_t}.\label{eq:cond_sigma_gig}
 \end{equation}
 
-\subsection{Metropolis--Hastings update for $\gamma$}\label{sec:mh_gamma}
+\subsection{Metropolis--Hastings update for gamma}\label{sec:mh_gamma}
 
 The conditional for $\gamma$ is nonconjugate due to the mapping $\gamma\mapsto p(p_0,\gamma)$ in $(A,B,C)$:
 \begin{align}
@@ -283,7 +283,7 @@ Coordinate ascent variational inference (CAVI) updates each factor by
 \end{equation}
 where $\E_{-j}$ is expectation with respect to all factors other than $q_j$.
 
-\subsection{$q(\bm\alpha_{0:T})$: Gaussian smoothing with VB pseudo-observations}\label{sec:vb_alpha}
+\subsection{Variational state factor q(alpha\_0:T): Gaussian smoothing with VB pseudo-observations}\label{sec:vb_alpha}
 
 The terms involving $\bm\alpha_{0:T}$ enter through the Gaussian evolution prior and the conditionally Gaussian likelihood \eqref{eq:pseudo_obs}. After taking expectations over $(\bm v,\bm s,\sigma,\gamma)$, the variational factor $q(\bm\alpha_{0:T})$ remains Gaussian and corresponds to a DLM with time-varying precision.
 Define
@@ -304,7 +304,7 @@ Then the log-density of $q(\bm\alpha_{0:T})$ is, up to a constant,
 which is the posterior of a linear-Gaussian state space model with observation variance $\phi_t^{-1}$.
 Hence, $q(\bm\alpha_{0:T})$ can be computed by standard Kalman smoothing recursions with $(\tilde y_t,R_t)$ replaced by $(y_t^{\mathrm{VB}},\phi_t^{-1})$.
 
-\subsection{$q(v_t)$: GIG form}\label{sec:vb_v}
+\subsection{Variational factor q(v\_t): GIG form}\label{sec:vb_v}
 
 Fix $t$. Collecting terms in the expected complete log joint involving $v_t$ yields
 \begin{equation}
@@ -321,7 +321,7 @@ with $\chi_{v,t}$ and $\psi_{v,t}$ obtained by replacing $(\eta_t,s_t,\sigma,\ga
 \end{align}
 Closed-form expansions of \eqref{eq:vb_v_chi} require second moments of $(\eta_t,s_t)$ under $q(\bm\alpha_{0:T})$ and $q(s_t)$; see Appendix~\ref{sec:appendix_moments}.
 
-\subsection{$q(s_t)$: truncated normal form}\label{sec:vb_s}
+\subsection{Variational factor q(s\_t): truncated normal form}\label{sec:vb_s}
 
 Similarly, the factor $q(s_t)$ remains truncated normal:
 \begin{equation}
@@ -337,11 +337,11 @@ V_{s,t}^{\mathrm{VB}}\;
 \E\!\left[\frac{C(p,\gamma)\sigma|\gamma|\,(y_t-\eta_t-A(p)v_t)}{\sigma B(p)\,v_t}\right].\label{eq:vb_s_m}
 \end{align}
 
-\subsection{$q(\sigma,\gamma)$ via Laplace--Delta}\label{sec:vb_sigmagamma}
+\subsection{Variational factor q(sigma,gamma) via Laplace--Delta}\label{sec:vb_sigmagamma}
 
 We approximate $q(\sigma,\gamma)$ using a Laplace approximation in unconstrained coordinates, and then apply a delta method to compute the moments required in Sections~\ref{sec:vb_alpha}--\ref{sec:vb_s}. Details are given in Section~\ref{sec:laplace_delta}.
 
-\section{Laplace--Delta approximation for $q(\sigma,\gamma)$}\label{sec:laplace_delta}
+\section{Laplace--Delta approximation for q(sigma,gamma)}\label{sec:laplace_delta}
 
 \subsection{Unconstrained coordinates}
 Let
