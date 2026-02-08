@@ -579,7 +579,7 @@ Define $\tilde f(\sigma,\gamma)$ (up to constants independent of $(\sigma,\gamma
 \begin{align}
 \tilde f(\sigma,\gamma)
 =
-&-(a_\sigma+1+\tfrac{3T}{2})\log\sigma - \frac{b_\sigma}{\sigma}
+&-(a_\sigma+1+\tfrac{3T}{2})\log\sigma - \frac{b_\sigma}{\sigma} - \frac{D_3}{\sigma}
 -\frac{T}{2}\log B(p)\nonumber\\
 &-\frac{D_1}{2\sigma B(p)} + \frac{A(p)D_2}{\sigma B(p)} - \frac{A(p)^2D_3}{2\sigma B(p)}
 +\frac{C(p,\gamma)|\gamma|D_4}{B(p)}\nonumber\\
@@ -588,6 +588,8 @@ Define $\tilde f(\sigma,\gamma)$ (up to constants independent of $(\sigma,\gamma
 +\log p(\gamma).
 \label{eq:f_tilde}
 \end{align}
+The term $-D_3/\sigma$ is the contribution of $-\sum_{t=1}^T \E[v_t]/\sigma$ from
+$\E[\log p(v_t\mid\sigma)]$ with $D_3=\sum_{t=1}^T\E[v_t]$.
 Then the transformed objective is
 \begin{equation}
 \ell(u,\xi)=\tilde f\big(\sigma(u),\gamma(\xi)\big)+u+\log\left|\frac{d\gamma}{d\xi}\right|.
