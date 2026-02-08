@@ -1,0 +1,1476 @@
+\documentclass[11pt]{article}
+
+% ---------------------------
+% Minimal, sober packages
+% ---------------------------
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb,amsthm,bm,mathtools}
+\usepackage[hidelinks]{hyperref}
+
+% ---------------------------
+% Macros
+% ---------------------------
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\1}{\mathbb{I}}
+\newcommand{\N}{\mathcal{N}}
+\newcommand{\IW}{\mathrm{InvWishart}}
+\newcommand{\W}{\mathrm{Wishart}}
+\newcommand{\IG}{\mathrm{InvGamma}}
+\newcommand{\Exp}{\mathrm{Exp}}
+\newcommand{\GIG}{\mathrm{GIG}}
+\newcommand{\tr}{\mathrm{tr}}
+\newcommand{\diag}{\mathrm{diag}}
+\newcommand{\BlockDiag}{\mathrm{BlockDiag}}
+\newcommand{\T}{\mathsf{T}}
+\newcommand{\phiN}{\varphi}
+\newcommand{\PhiN}{\Phi}
+% Expectations / variance
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\Cov}{\mathrm{Cov}}
+
+\title{Model A $\to$ Model B $\to$ Model C: Hierarchical Specification and Full Conditionals (Augmented exAL)}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Notation and dimensions}
+
+Let $p_0\in(0,1)$ denote the target quantile. Historical (fit) period is $t=1,\dots,T$. Forecast period is $t=T+1,\dots,T+K_{(1)}$.
+
+\paragraph{Core DLM objects (historical).}
+\begin{itemize}
+\item Baseline observation: $y_t^o\in\R$.
+\item Trend/seasonal state: $\bm\theta_t\in\R^q$ with design $\bm F_t\in\R^q$, evolution $\bm G_t\in\R^{q\times q}$, covariance $\bm W_t^\theta\in\R^{q\times q}$.
+\item Transfer-function state: $\zeta_t\in\R$, regression effects $\bm\psi_t\in\R^m$, covariates $\bm x_t\in\R^m$, scalar AR coefficient $\lambda\in\R$, with covariances $w_t^\zeta\in\R_+$ and $\bm W_t^\psi\in\R^{m\times m}$.
+\end{itemize}
+
+\paragraph{Retrospective products (Model B).}
+For $j=1,\dots,J$, retrospective series $z_t^j\in\R$ has  discrepancy state $\bm\delta_t^j\in\R^q$ and covariance $\bm W_t^{\delta^j}\in\R^{q\times q}$.
+
+\paragraph{Forecast products (Model C).}
+For forecaster $j$ there are ensemble members $i=1,\dots,I_j$ and lead times $k=1,\dots,K_{(j)}$, with scalar $y_T^{j,i}(k)\in\R$.
+
+\section{Model A (baseline exDQLM with transfer function)}
+
+For $t=1,\dots,T$:
+\begin{align}
+y_t^o \mid \bm\theta_t,\zeta_t,\sigma^o,\gamma^o
+&\sim \mathrm{exAL}_{p_0}\!\big(\bm F_t^\T\bm\theta_t+\zeta_t,\;\sigma^o,\;\gamma^o\big), \label{eq:A_obs}\\
+\bm\theta_t \mid \bm\theta_{t-1}
+&\sim \N\!\big(\bm G_t\bm\theta_{t-1},\;\bm W_t^\theta\big), \label{eq:A_theta}\\
+\zeta_t \mid \zeta_{t-1},\bm\psi_t
+&\sim \N\!\big(\lambda\zeta_{t-1}+\bm x_t^\T\bm\psi_t,\;w_t^\zeta\big), \label{eq:A_zeta}\\
+\bm\psi_t \mid \bm\psi_{t-1}
+&\sim \N\!\big(\bm\psi_{t-1},\;\bm W_t^\psi\big). \label{eq:A_psi}
+\end{align}
+
+\paragraph{Compact stacked form (Model A).}
+Define stacked state $\bm\alpha_t = (\bm\theta_t^\T,\zeta_t,\bm\psi_t^\T)^\T\in\R^{q+1+m}$ and design
+\[
+\tilde{\bm F}_t=
+\begin{bmatrix}
+\bm F_t \\ 1 \\ \bm 0_m
+\end{bmatrix}\in\R^{q+1+m}.
+\]
+Define
+\[
+\bm G_t^{\mathrm{trans}}=
+\begin{bmatrix}
+\lambda & \bm x_t^\T\\
+\bm 0_m & \bm I_m
+\end{bmatrix}\in\R^{(1+m)\times(1+m)},
+\qquad
+\tilde{\bm G}_t=\BlockDiag(\bm G_t,\bm G_t^{\mathrm{trans}}),
+\qquad
+\tilde{\bm W}_t=\BlockDiag(\bm W_t^\theta,w_t^\zeta,\bm W_t^\psi).
+\]
+Then
+\begin{align}
+y_t^o \mid \bm\alpha_t,\sigma^o,\gamma^o
+&\sim \mathrm{exAL}_{p_0}\!\big(\tilde{\bm F}_t^\T\bm\alpha_t,\;\sigma^o,\;\gamma^o\big), \\
+\bm\alpha_t \mid \bm\alpha_{t-1}
+&\sim \N\!\big(\tilde{\bm G}_t\bm\alpha_{t-1},\;\tilde{\bm W}_t\big).
+\end{align}
+
+\section{Model B (add \texorpdfstring{$J$}{J} retrospective products via discrepancy states)}
+
+For $t=1,\dots,T$ and $j=1,\dots,J$:
+\begin{align}
+y_t^o \mid \bm\alpha_t,\sigma^o,\gamma^o
+&\sim \mathrm{exAL}_{p_0}\!\big(\tilde{\bm F}_t^\T\bm\alpha_t,\;\sigma^o,\;\gamma^o\big),\\
+z_t^j \mid \bm\alpha_t,\bm\delta_t^j,\sigma^j,\gamma^j
+&\sim \mathrm{exAL}_{p_0}\!\big(\tilde{\bm F}_t^\T\bm\alpha_t+\bm F_t^\T\bm\delta_t^j,\;\sigma^j,\;\gamma^j\big),\label{eq:B_obs}\\
+\bm\delta_t^j \mid \bm\delta_{t-1}^j
+&\sim \N\!\big(\bm G_t\bm\delta_{t-1}^j,\;\bm W_t^{\delta^j}\big). \label{eq:B_delta}
+\end{align}
+(And $\bm\alpha_t$ evolves as in Model A.)
+
+\section{Model C (forecast period: ensemble forecasts; transfer omitted)}
+
+Assume a fixed set of active forecasters in the forecast period; let $J_f$ denote the number of active forecasters.
+For each forecast time $t=T+1,\dots,T+K_{(1)}$, define
+\[
+\bm\beta_t=
+\begin{bmatrix}
+\bm\theta_t\\
+\bm\delta_t^f
+\end{bmatrix}\in\R^{p_t},
+\qquad
+\bm\delta_t^f=
+\begin{bmatrix}
+\bm\delta_t^1\\
+\vdots\\
+\bm\delta_t^{J_f}
+\end{bmatrix}\in\R^{d_t},
+\qquad
+d_t := q\,J_f,
+\quad
+p_t := q+d_t = q(1+J_f).
+\]
+
+For each active forecaster $j\in\{1,\dots,J_f\}$ and member $i=1,\dots,I_j$:
+\begin{align}
+y_T^{j,i}(k)\mid \bm\beta_{T+k},\sigma^j,\gamma^j
+&\sim \mathrm{exAL}_{p_0}\!\big(\bm e_{T+k,j+1}^\T\bm\beta_{T+k},\;\sigma^j,\;\gamma^j\big),\label{eq:C_obs}\\
+\bm\beta_{t}\mid \bm\beta_{t-1},\bm W_t
+&\sim \N\!\big(\bm M_t\bm\beta_{t-1},\;\bm W_t\big),\label{eq:C_state}\\
+\bm W_t &\sim \IW(\nu_t,\bm S_t),\qquad t=T+1,\dots,T+K_{(1)}. \label{eq:C_IW}
+\end{align}
+Here $\bm e_{t,\ell}\in\R^{p_t}$ denotes the $\ell$-th measurement-loading column (baseline $\ell=1$, forecaster $j$ corresponds to $\ell=j+1$), and $\bm M_t\in\R^{p_t\times p_t}$ is block-diagonal with $\bm G_t$ repeated $1+J_f$ times on that interval.
+
+\paragraph{Augmented (conditionally Gaussian) form for ensemble members.}
+For each ensemble observation $y_T^{j,i}(k)$ in \eqref{eq:C_obs}, introduce latent variables
+$v_{T+k}^{j,i}\in\R_+$ and $s_{T+k}^{j,i}\in\R_+$.
+Let $p^j=p(p_0,\gamma^j)$ and define $A^j=A(p^j)$, $B^j=B(p^j)$, $C^j=C(p^j,\gamma^j)$.
+Then, conditionally on these latents,
+\begin{align}
+y_T^{j,i}(k)\mid \bm\beta_{T+k},\sigma^j,\gamma^j,v_{T+k}^{j,i},s_{T+k}^{j,i}
+\sim \N\!\Big(
+\bm e_{T+k,j+1}^\T\bm\beta_{T+k} + C^j\,\sigma^j|\gamma^j|\,s_{T+k}^{j,i} + A^j\,v_{T+k}^{j,i},
+\;\sigma^j B^j\,v_{T+k}^{j,i}
+\Big),
+\end{align}
+with $v_{T+k}^{j,i}\mid\sigma^j\sim \Exp(\text{rate}=1/\sigma^j)$ and $s_{T+k}^{j,i}\sim \N^+(0,1)$.
+
+\section{exAL augmentation used for posterior derivations}
+
+\paragraph{Per-observation augmentation (used in Models A/B/C).}
+Let $\{y_n\}_{n\in\mathcal{I}}$ be any collection of scalar observations governed by a common parameter pair $(\sigma,\gamma)$.
+Each observation $y_n$ has a linear predictor $\eta_n$ and gets its own latent variables
+$v_n\in\R_+$ and $s_n\in\R_+$.
+For each $n\in\mathcal{I}$:
+\begin{align}
+y_n \mid \eta_n,\sigma,\gamma,v_n,s_n
+&\sim \N\!\Big(\eta_n + C(p,\gamma)\,\sigma|\gamma|\,s_n + A(p)\,v_n,\;\sigma\,B(p)\,v_n\Big), \label{eq:aug_y}\\
+v_n\mid\sigma &\sim \Exp(\text{rate}=1/\sigma)\quad\text{(mean $\sigma$)},\label{eq:aug_v}\\
+s_n &\sim \N^+(0,1). \label{eq:aug_s}
+\end{align}
+For notational simplicity, the conditional derivations below drop the index $n$ and write $(y,\eta,v,s)$ for a generic observation.
+
+The mapping from $(p_0,\gamma)$ to $p$ and the functions $A,B,C$ are:
+\begin{align}
+g(\gamma) &= 2\,\PhiN(-|\gamma|)\exp(\gamma^2/2), \\
+p(p_0,\gamma) &= \1(\gamma<0) + \frac{p_0-\1(\gamma<0)}{g(\gamma)}, \\
+A(p) &= \frac{1-2p}{p(1-p)},\qquad B(p)=\frac{2}{p(1-p)},\qquad C(p,\gamma)=\big(\1(\gamma>0)-p\big)^{-1}.
+\end{align}
+The admissible interval $\gamma\in(L,U)$ is determined by the feasibility constraints implied by $g(\gamma)$; we enforce this through the prior below.
+
+\paragraph{Priors for $(\sigma,\gamma)$.}
+For each source (baseline and each forecaster) we use:
+\[
+\sigma\sim \IG(a_\sigma,b_\sigma),
+\qquad
+\gamma\sim t_{(L,U)}(m_\gamma,s_\gamma;\nu_\gamma),
+\]
+i.e., a Student-$t$ truncated to $(L,U)$.
+
+\section{Augmented joint posterior (generic block)}
+
+For any series with state path $\bm\theta_{0:T}$ (dimension $q$), latent variables $(v_{1:T},s_{1:T})$, and parameters $(\sigma,\gamma)$, condition on known $(\bm F_t,\bm G_t,\bm W_t)$:
+\begin{align}
+p(\bm\theta_{0:T},v_{1:T},s_{1:T},\sigma,\gamma \mid y_{1:T})
+\propto\;
+&p(\bm\theta_0)\,p(\sigma)\,p(\gamma)\;\prod_{t=1}^T \N(\bm\theta_t\mid \bm G_t\bm\theta_{t-1},\bm W_t)\nonumber\\
+&\times \prod_{t=1}^T \Big[
+\N\!\big(y_t\mid \eta_t + C\sigma|\gamma|s_t + Av_t,\;\sigma B v_t\big)\;
+\Exp(v_t\mid \text{rate}=1/\sigma)\;
+\N^+(s_t\mid 0,1)\Big],\label{eq:joint_aug}
+\end{align}
+where $\eta_t=\bm F_t^\T\bm\theta_t$ (or the appropriate linear predictor in Models A/B/C),
+and $A=A(p)$, $B=B(p)$, $C=C(p,\gamma)$ with $p=p(p_0,\gamma)$.
+
+\section{Full conditionals (up to proportionality)}
+
+All conditionals below apply \emph{source-wise} (baseline and each forecaster), replacing $(y_t,\eta_t,\bm\theta_t,\sigma,\gamma)$ by the corresponding data/model-specific linear predictor:
+\begin{itemize}
+\item Baseline: $\eta_t=\tilde{\bm F}_t^\T\bm\alpha_t$.
+\item Retrospective $z_t^j$: $\eta_t=\tilde{\bm F}_t^\T\bm\alpha_t+\bm F_t^\T\bm\delta_t^j$.
+\item Forecast ensemble member $y_T^{j,i}(k)$: $\eta_{T+k}=\bm e_{T+k,j+1}^\T\bm\beta_{T+k}$.
+\end{itemize}
+
+\subsection{Full conditional of \texorpdfstring{$v_t$}{vt} (GIG)}
+
+Define
+\[
+r_t := y_t - \eta_t - C(p,\gamma)\,\sigma|\gamma|\,s_t.
+\]
+Then
+\begin{align}
+p(v_t\mid \text{rest})
+&\propto v_t^{-1/2}
+\exp\!\left(
+-\frac{r_t^2}{2\sigma B}\frac{1}{v_t}
+-\Big(\frac{A^2}{2\sigma B}+\frac{1}{\sigma}\Big)v_t
+\right)\1(v_t>0)\nonumber\\
+&\equiv \GIG\!\left(\lambda=\tfrac12,\;\chi=\frac{r_t^2}{\sigma B},\;\psi=\frac{A^2}{\sigma B}+\frac{2}{\sigma}\right).\label{eq:cond_v}
+\end{align}
+We use the $\GIG(\lambda,\chi,\psi)$ density
+\[
+f(x)\propto x^{\lambda-1}\exp\!\left(-\frac{\chi/x+\psi x}{2}\right)\1(x>0).
+\]
+
+\subsection{Full conditional of \texorpdfstring{$s_t$}{st} (truncated Normal)}
+
+Let
+\[
+y_t^\circ := y_t - \eta_t - A v_t,\qquad d:=C(p,\gamma)\,\sigma|\gamma|,\qquad R_t:=\sigma B v_t.
+\]
+Then
+\[
+s_t\mid \text{rest}\sim \N^+\!\big(m_{s,t},V_{s,t}\big),
+\]
+with
+\begin{align}
+V_{s,t} &= \left(1+\frac{d^2}{R_t}\right)^{-1}
+=\left(1+\frac{C(p,\gamma)^2\,\sigma\,\gamma^2}{B\,v_t}\right)^{-1},\label{eq:cond_s_V}\\
+m_{s,t} &= V_{s,t}\left(\frac{d\,y_t^\circ}{R_t}\right)
+=V_{s,t}\left(\frac{C(p,\gamma)|\gamma|}{B\,v_t}\,y_t^\circ\right).\label{eq:cond_s_m}
+\end{align}
+
+\subsection{Joint full conditional of the state path (Gaussian; FFBS)}
+
+Conditioning on $(v_{1:T},s_{1:T},\sigma,\gamma)$ yields conditionally Gaussian pseudo-observations:
+\[
+\tilde y_t := y_t - C(p,\gamma)\,\sigma|\gamma|\,s_t - A v_t,
+\qquad
+\tilde y_t\mid \bm\theta_t \sim \N(\eta_t,\;R_t),
+\qquad
+R_t=\sigma B v_t.
+\]
+Thus the full conditional of the complete state trajectory is
+\begin{align}
+p(\bm\theta_{0:T}\mid \text{rest})
+\propto\;&
+\N(\bm\theta_0\mid \bm m_0,\bm C_0)
+\prod_{t=1}^T \N(\bm\theta_t\mid \bm G_t\bm\theta_{t-1},\bm W_t)
+\prod_{t=1}^T \N(\tilde y_t\mid \eta_t,\;R_t),\label{eq:cond_state_path}
+\end{align}
+which is multivariate Normal with a block-tridiagonal precision, sampled exactly via FFBS/Kalman simulation smoothing.
+
+\paragraph{Multiple observations per time (Models B and C).}
+In Model B, at each time $t$ there are $J{+}1$ scalar observations $\{y_t^o,z_t^1,\dots,z_t^J\}$.
+In Model C, at forecast time $t=T+k$ there are multiple ensemble-member observations
+$\{y_T^{j,i}(k): j=1,\dots,J_f,\ i=1,\dots,I_j\}$.
+Conditioning on all corresponding latent variables $(v,s)$ and parameters $(\sigma,\gamma)$, each scalar datum becomes Gaussian and independent.
+Thus, at any time index $\tau$ (historical or forecast), define an observation set $\mathcal{O}_\tau$ and for each $o\in\mathcal{O}_\tau$ define
+\[
+\tilde y_{\tau,o} := y_{\tau,o}-C_{\tau,o}\sigma_{\tau,o}|\gamma_{\tau,o}|\,s_{\tau,o}-A_{\tau,o}v_{\tau,o},
+\qquad
+R_{\tau,o}:=\sigma_{\tau,o}B_{\tau,o}v_{\tau,o},
+\]
+so that
+\[
+\tilde y_{\tau,o}\mid \bm x_\tau \sim \N(h_{\tau,o}^\T \bm x_\tau,\;R_{\tau,o}).
+\]
+Stacking $\tilde{\bm y}_\tau=(\tilde y_{\tau,o})_{o\in\mathcal{O}_\tau}$ and letting $\bm H_\tau$ collect the corresponding measurement vectors $h_{\tau,o}$,
+\[
+\tilde{\bm y}_\tau\mid \bm x_\tau \sim \N\!\big(\bm H_\tau^\T \bm x_\tau,\;\bm R_\tau\big),
+\qquad
+\bm R_\tau=\diag\big(R_{\tau,o}:o\in\mathcal{O}_\tau\big).
+\]
+Here $\bm x_\tau$ denotes the relevant state vector: $\bm\alpha_t$ (Model A), the stacked $(\bm\alpha_t,\bm\delta_t^1,\dots,\bm\delta_t^J)$ (Model B),
+or $\bm\beta_{T+k}$ (Model C). The FFBS/Kalman simulation smoother applies directly with the multivariate observation equation above.
+
+\subsection{Full conditional of \texorpdfstring{$\sigma$}{sigma} (GIG)}
+
+Let
+\[
+y_t^\circ := y_t - \eta_t - A v_t,
+\qquad
+u_t := C(p,\gamma)\,|\gamma|\,s_t,
+\qquad
+R_t=\sigma B v_t.
+\]
+Then the terms in $\sigma$ are:
+\[
+(\sigma B v_t)^{-1/2}\exp\!\left(-\frac{(y_t^\circ-\sigma u_t)^2}{2\sigma B v_t}\right)\times
+\sigma^{-1}\exp(-v_t/\sigma),
+\]
+and with $\sigma\sim \IG(a_\sigma,b_\sigma)$ one obtains
+\begin{align}
+p(\sigma\mid \text{rest})
+\propto\;&
+\sigma^{-(a_\sigma+1+\tfrac{3T}{2})}
+\exp\!\left(
+-\frac{1}{\sigma}\Big[b_\sigma+\sum_{t=1}^T v_t+\sum_{t=1}^T\frac{(y_t^\circ)^2}{2Bv_t}\Big]
+-\sigma\Big[\sum_{t=1}^T\frac{u_t^2}{2Bv_t}\Big]
+\right)\1(\sigma>0)\nonumber\\
+\equiv\;&
+\GIG\!\left(
+\lambda=-(a_\sigma+\tfrac{3T}{2}),\;
+\chi=2b_\sigma+2\sum_{t=1}^T v_t+\sum_{t=1}^T\frac{(y_t^\circ)^2}{Bv_t},\;
+\psi=\sum_{t=1}^T\frac{u_t^2}{Bv_t}
+\right).\label{eq:cond_sigma}
+\end{align}
+
+\subsection{Full conditional of \texorpdfstring{$\gamma$}{gamma} (non-conjugate; target density)}
+
+There is no conjugate form due to the dependence
+\[
+p=p(p_0,\gamma),\quad A(p),\quad B(p),\quad C(p,\gamma).
+\]
+The full conditional (up to proportionality) is
+\begin{align}
+p(\gamma\mid \text{rest})
+\propto\;&
+t_{(L,U)}(\gamma\mid m_\gamma,s_\gamma;\nu_\gamma)
+\prod_{t=1}^T \Big(\sigma B(p)\,v_t\Big)^{-1/2}\nonumber\\
+&\times \exp\!\left(
+-\sum_{t=1}^T
+\frac{\big[y_t-\eta_t-A(p)v_t-C(p,\gamma)\sigma|\gamma|s_t\big]^2}{2\sigma B(p)\,v_t}
+\right)\1(L<\gamma<U).\label{eq:cond_gamma}
+\end{align}
+This is the target for a 1D Metropolis--Hastings update (or a joint update with $\sigma$).
+
+\subsection{Joint posterior kernel for \texorpdfstring{$(\sigma,\gamma)$}{(sigma,gamma)} for one source}
+
+Fix a single parameter pair $(\sigma,\gamma)$ corresponding to one source (baseline or forecaster).
+Let $\mathcal{I}$ index all scalar observations governed by this pair.
+For each $n\in\mathcal{I}$, let $y_n$ be the observation, $\eta_n$ the corresponding linear predictor, and $(v_n,s_n)$ its latent variables.
+Let $p=p(p_0,\gamma)$ and define $A=A(p)$, $B=B(p)$, $C=C(p,\gamma)$.
+
+Conditioning on the states (hence on $\{\eta_n\}$) and on $\{(v_n,s_n)\}_{n\in\mathcal{I}}$, the joint posterior density of $(\sigma,\gamma)$ is, up to a proportionality constant,
+\begin{align}
+p(\sigma,\gamma \mid \text{rest})
+\propto\;&
+\IG(\sigma\mid a_\sigma,b_\sigma)\;
+t_{(L,U)}(\gamma\mid m_\gamma,s_\gamma;\nu_\gamma)\;\1(L<\gamma<U)\nonumber\\
+&\times \prod_{n\in\mathcal{I}}
+\Big[
+\N\!\big(y_n\mid \eta_n + C\sigma|\gamma|s_n + Av_n,\;\sigma B v_n\big)\;
+\Exp(v_n\mid \text{rate}=1/\sigma)\;
+\N^+(s_n\mid 0,1)
+\Big]. \label{eq:joint_sigmagamma}
+\end{align}
+Since $\N^+(s_n\mid 0,1)$ does not depend on $(\sigma,\gamma)$, it may be dropped from the kernel when updating $(\sigma,\gamma)$.
+Equivalently, dropping factors independent of $(\sigma,\gamma)$ yields the compact kernel
+\begin{align}
+p(\sigma,\gamma \mid \text{rest})
+\propto\;&
+\sigma^{-(a_\sigma+1)}\exp(-b_\sigma/\sigma)\;
+t_{(L,U)}(\gamma\mid m_\gamma,s_\gamma;\nu_\gamma)\;\1(L<\gamma<U)\nonumber\\
+&\times \prod_{n\in\mathcal{I}}
+\Big[(\sigma B v_n)^{-1/2}\exp\!\Big(-\frac{\big[y_n-\eta_n-Av_n-C\sigma|\gamma|s_n\big]^2}{2\sigma B v_n}\Big)\Big]\;
+\sigma^{-|\mathcal{I}|}\exp\!\Big(-\frac{\sum_{n\in\mathcal{I}} v_n}{\sigma}\Big). \label{eq:joint_sigmagamma_kernel}
+\end{align}
+
+\paragraph{Instantiation.}
+For baseline $(\sigma^o,\gamma^o)$, take $\mathcal{I}=\{t: y_t^o\}$.
+For forecaster $j$, take $\mathcal{I}=\{t: z_t^j\}\cup\{(k,i): y_T^{j,i}(k)\}$, as appropriate for the model stage.
+
+\section{Inverse-Wishart / Wishart full conditionals (matrix blocks)}
+
+\subsection{Evolution covariance \texorpdfstring{$W$}{W} (inverse-Wishart conjugacy)}
+Let $\bm\theta_t\in\R^q$ satisfy $\bm\theta_t=\bm G_t\bm\theta_{t-1}+\bm\omega_t$ with $\bm\omega_t\sim\N(\bm 0,\bm W)$ i.i.d.\ and prior $\bm W\sim \IW(\nu_0,\bm S_0)$.
+Define residuals $\bm\omega_t=\bm\theta_t-\bm G_t\bm\theta_{t-1}$ and $\bm\Omega=\sum_{t=1}^T \bm\omega_t\bm\omega_t^\T$.
+Then
+\begin{equation}
+\bm W\mid \bm\theta_{0:T}\sim \IW(\nu_0+T,\;\bm S_0+\bm\Omega).\label{eq:cond_W_const}
+\end{equation}
+If instead independent priors $\bm W_t\sim \IW(\nu_{0,t},\bm S_{0,t})$ are used, then for each $t$:
+\begin{equation}
+\bm W_t\mid \bm\theta_{t-1:t}\sim \IW\!\left(\nu_{0,t}+1,\;\bm S_{0,t}+(\bm\theta_t-\bm G_t\bm\theta_{t-1})(\bm\theta_t-\bm G_t\bm\theta_{t-1})^\T\right).\label{eq:cond_W_timevary}
+\end{equation}
+
+\subsection{Observation covariance / precision (generic Gaussian block)}
+If $\bm y_t\in\R^d$ and $\bm y_t\mid \bm\mu_t,\bm\Sigma\sim \N_d(\bm\mu_t,\bm\Sigma)$ with $\bm\Sigma\sim\IW(\nu_0,\bm S_0)$, then with residuals $\bm e_t=\bm y_t-\bm\mu_t$:
+\begin{equation}
+\bm\Sigma\mid \{\bm e_t\}\sim \IW\!\left(\nu_0+T,\;\bm S_0+\sum_{t=1}^T \bm e_t\bm e_t^\T\right).\label{eq:cond_Sigma}
+\end{equation}
+Equivalently, if $\bm\Lambda=\bm\Sigma^{-1}\sim \W(\nu_0,\bm V_0)$, then
+\begin{equation}
+\bm\Lambda\mid \{\bm e_t\}\sim \W\!\left(\nu_0+T,\;\Big(\bm V_0^{-1}+\sum_{t=1}^T \bm e_t\bm e_t^\T\Big)^{-1}\right).\label{eq:cond_Lambda}
+\end{equation}
+
+\section{Source-wise application (baseline + forecasters)}
+
+For baseline and each forecaster $j$, apply Sections 5--7 with the appropriate linear predictor:
+\begin{itemize}
+\item Baseline $(y_t^o)$: $\eta_t=\tilde{\bm F}_t^\T\bm\alpha_t$ and parameters $(\sigma^o,\gamma^o)$.
+\item Retrospective $(z_t^j)$: $\eta_t=\tilde{\bm F}_t^\T\bm\alpha_t+\bm F_t^\T\bm\delta_t^j$ and parameters $(\sigma^j,\gamma^j)$.
+\item Forecast ensembles $(y_T^{j,i}(k))$: $\eta_{T+k}=\bm e_{T+k,j+1}^\T\bm\beta_{T+k}$ and parameters $(\sigma^j,\gamma^j)$.
+\end{itemize}
+
+\bigskip
+\noindent\textbf{Remark (dimension check).}
+In Model B, the term $\bm F_t^\T\bm\delta_t^j$ is scalar, hence $\bm\delta_t^j\in\R^q$ (matching $\bm F_t\in\R^q$).
+
+% ===========================
+% Algorithms (appendix-style)
+% ===========================
+\section{Algorithms: Gibbs/MH and Mean-Field VB (CAVI)}
+
+\subsection{Unified per-source indexing and pseudo-observations}
+
+Let $s$ denote a \emph{source} (baseline $o$ or a forecaster $j$), with parameters $(\sigma^s,\gamma^s)$.
+Let $\mathcal{I}_s$ index all scalar observations governed by $(\sigma^s,\gamma^s)$.
+For each $n\in\mathcal{I}_s$, let $y_n$ be the datum, $\eta_n$ its linear predictor (given the relevant state),
+and $(v_n,s_n)$ the augmentation variables.
+
+Define $p^s=p(p_0,\gamma^s)$ and $A^s=A(p^s)$, $B^s=B(p^s)$, $C^s=C(p^s,\gamma^s)$.
+Given $(v_n,s_n,\sigma^s,\gamma^s)$ define the Gaussian pseudo-observation and variance
+\begin{equation}
+\tilde y_n := y_n - C^s\,\sigma^s|\gamma^s|\,s_n - A^s v_n,
+\qquad
+R_n := \sigma^s B^s v_n,
+\qquad
+\tilde y_n \mid (\text{state}) \sim \N(\eta_n, R_n).
+\label{eq:pseudo_obs_alg}
+\end{equation}
+For multiple observations at the same time index $\tau$, stack
+$\tilde{\bm y}_\tau = (\tilde y_{\tau,o})_{o\in\mathcal{O}_\tau}$ and
+$\bm R_\tau=\diag(R_{\tau,o}:o\in\mathcal{O}_\tau)$, so that
+$\tilde{\bm y}_\tau\mid \bm x_\tau \sim \N(\bm H_\tau^\T \bm x_\tau,\bm R_\tau)$
+with $\bm H_\tau$ collecting measurement vectors (as in the ``Multiple observations per time'' block).
+
+\subsection{Gibbs/MH sampler (one sweep)}
+
+Repeat for iterations $\ell=1,2,\dots$:
+
+\paragraph{(1) Update $v_n$ for all sources and observations (GIG).}
+For each $s$ and $n\in\mathcal{I}_s$, define
+\[
+r_n := y_n - \eta_n - C^s\,\sigma^s|\gamma^s|\,s_n.
+\]
+Then
+\begin{equation}
+v_n \mid \text{rest} \sim \GIG\!\left(\lambda=\tfrac12,\;
+\chi=\frac{r_n^2}{\sigma^s B^s},\;
+\psi=\frac{(A^s)^2}{\sigma^s B^s}+\frac{2}{\sigma^s}\right).
+\label{eq:gibbs_v_alg}
+\end{equation}
+
+\paragraph{(2) Update $s_n$ for all sources and observations (truncated Normal).}
+For each $s$ and $n\in\mathcal{I}_s$, let
+\[
+y_n^\circ := y_n - \eta_n - A^s v_n,
+\qquad
+d^s := C^s\,\sigma^s|\gamma^s|,
+\qquad
+R_n := \sigma^s B^s v_n.
+\]
+	Then
+	\begin{equation}
+	\begin{aligned}
+	s_n \mid \text{rest} &\sim \N^+(m_{s,n},V_{s,n}),\\
+	V_{s,n}
+	&=\left(1+\frac{(d^s)^2}{R_n}\right)^{-1}
+	=\left(1+\frac{(C^s)^2\,\sigma^s(\gamma^s)^2}{B^s\,v_n}\right)^{-1},\\
+	m_{s,n}
+	&=V_{s,n}\left(\frac{d^s\,y_n^\circ}{R_n}\right)
+	=V_{s,n}\left(\frac{C^s|\gamma^s|}{B^s v_n}y_n^\circ\right).
+	\end{aligned}
+	\label{eq:gibbs_s_alg}
+	\end{equation}
+
+\paragraph{(3) Update state trajectories (Gaussian; FFBS placeholder).}
+Using the pseudo-observations \eqref{eq:pseudo_obs_alg} (stacked per time $\tau$ as needed),
+	sample the full state path via a Kalman simulation smoother / FFBS:
+	\begin{equation}
+	\begin{aligned}
+	\bm x_{0:\text{end}} \mid \text{rest}
+	&\;\text{is Gaussian and sampled by FFBS for the DLM},\\
+	\tilde{\bm y}_\tau \mid \bm x_\tau
+	&\sim \N(\bm H_\tau^\T\bm x_\tau,\bm R_\tau),\\
+	\bm x_\tau \mid \bm x_{\tau-1}
+	&\sim \N(\bm G_\tau \bm x_{\tau-1},\bm W_\tau).
+	\end{aligned}
+	\label{eq:gibbs_ffbs_placeholder}
+	\end{equation}
+Here $\bm x_\tau$ is $\bm\alpha_t$ (Model A), the stacked $(\bm\alpha_t,\bm\delta_t^1,\dots,\bm\delta_t^J)$ (Model B),
+or $\bm\beta_t$ (Model C), with the corresponding $\bm G_\tau,\bm W_\tau$.
+
+\paragraph{(4) Update evolution covariances (inverse-Wishart).}
+Given the sampled state path, update any $\bm W$ or $\bm W_t$ blocks by the conjugate inverse-Wishart forms
+(e.g., \eqref{eq:cond_W_const} or \eqref{eq:cond_W_timevary}, and in Model C update $\bm W_t$ similarly).
+
+\paragraph{(5) Update $\sigma^s$ for each source $s$ (GIG).}
+Let $N_s:=|\mathcal{I}_s|$ and for $n\in\mathcal{I}_s$ define
+\[
+y_n^\circ := y_n - \eta_n - A^s v_n,
+\qquad
+u_n := C^s|\gamma^s|\,s_n.
+\]
+Then
+\begin{equation}
+\sigma^s\mid \text{rest} \sim \GIG(\lambda_s,\chi_s,\psi_s),
+\quad
+\lambda_s=-(a_\sigma+\tfrac{3N_s}{2}),
+\quad
+\chi_s=2b_\sigma+2\sum_{n\in\mathcal{I}_s} v_n+\sum_{n\in\mathcal{I}_s}\frac{(y_n^\circ)^2}{B^s v_n},
+\quad
+\psi_s=\sum_{n\in\mathcal{I}_s}\frac{u_n^2}{B^s v_n}.
+\label{eq:gibbs_sigma_alg}
+\end{equation}
+
+\paragraph{(6) Update $\gamma^s$ for each source $s$ (1D MH; target up to proportionality).}
+The full conditional kernel is
+\begin{align}
+p(\gamma^s\mid \text{rest})
+\propto\;&
+t_{(L,U)}(\gamma^s\mid m_\gamma,s_\gamma;\nu_\gamma)\;
+\prod_{n\in\mathcal{I}_s}\Big(\sigma^s B(p^s)\,v_n\Big)^{-1/2}\nonumber\\
+&\times
+\exp\!\left(
+-\sum_{n\in\mathcal{I}_s}
+\frac{\big[y_n-\eta_n-A(p^s)v_n-C(p^s,\gamma^s)\sigma^s|\gamma^s|s_n\big]^2}{2\sigma^s B(p^s)\,v_n}
+\right)\,\1(L<\gamma^s<U),
+\label{eq:gibbs_gamma_alg}
+\end{align}
+and MH is applied on $(L,U)$ (optionally jointly with $\sigma^s$ using \eqref{eq:joint_sigmagamma_kernel}).
+
+\subsection{Mean-field VB (CAVI): updates and required expectations}
+
+\paragraph{Factorization.}
+Use the mean-field structure
+\[
+q(\text{all}) = q(\text{states})\,q(\text{all }W\text{ blocks})
+\prod_s q(\sigma^s,\gamma^s)\prod_s\prod_{n\in\mathcal{I}_s} q(v_n)\,q(s_n),
+\]
+where $q(\sigma^s,\gamma^s)$ is \emph{joint} (nonconjugate) for each source $s$.
+
+\subsubsection*{CAVI step 1: $q(v_n)$ (GIG)}
+For each $s$ and $n\in\mathcal{I}_s$,
+\begin{equation}
+q(v_n)=\GIG\!\left(\lambda=\tfrac12,\;\chi_n,\;\psi_s\right),
+\qquad
+\psi_s=\E_q\!\left[\frac{(A^s)^2}{\sigma^s B^s}+\frac{2}{\sigma^s}\right],
+\label{eq:vb_qv}
+\end{equation}
+and the $\chi_n$ term can be written (by expanding the square) as
+\begin{equation}
+\chi_n
+=
+\E_q\!\left[\frac{(y_n-\eta_n)^2}{\sigma^s B^s}\right]
+-2\,\E_q\!\left[\frac{C^s|\gamma^s|}{B^s}\right]\E_q[s_n]\E_q[y_n-\eta_n]
++\E_q\!\left[\frac{\sigma^s (C^s)^2(\gamma^s)^2}{B^s}\right]\E_q[s_n^2],
+\label{eq:vb_chi}
+\end{equation}
+where $\E_q[\cdot]$ is with respect to the current variational factors.
+(Here we use the mean-field independence between $(\sigma^s,\gamma^s)$, $(\eta_n)$, and $s_n$.)
+
+\subsubsection*{CAVI step 2: $q(s_n)$ (truncated Normal)}
+For each $s$ and $n\in\mathcal{I}_s$,
+\begin{equation}
+q(s_n)=\N^+(m_n,V_n),
+\qquad
+V_n=(1+\kappa_n)^{-1},
+\qquad
+m_n=V_n\,\rho_n,
+\label{eq:vb_qs}
+\end{equation}
+with
+\begin{equation}
+\kappa_n
+=
+\E_q\!\left[\frac{\sigma^s (C^s)^2(\gamma^s)^2}{B^s}\right]\E_q\!\left[\frac{1}{v_n}\right],
+\qquad
+\rho_n
+=
+\E_q\!\left[\frac{C^s|\gamma^s|}{B^s}\right]\E_q[y_n-\eta_n]\E_q\!\left[\frac{1}{v_n}\right]
+-\E_q\!\left[\frac{C^s|\gamma^s|A^s}{B^s}\right].
+\label{eq:vb_kappa_rho}
+\end{equation}
+
+\subsubsection*{CAVI step 3: $q(\text{states})$ (Gaussian; FFBS-like placeholder)}
+Define, for each observation $n\in\mathcal{I}_s$, the expected information-form quantities
+% --- Replace eq:vb_info_wb with this corrected block ---
+
+\begin{equation}
+w_n := \E_q\!\left[\frac{1}{R_n}\right]
+=
+\E_q\!\left[\frac{1}{\sigma^s B^s}\right]\E_q\!\left[\frac{1}{v_n}\right],
+\qquad
+b_n := \E_q\!\left[\frac{\tilde y_n}{R_n}\right]
+=
+y_n\,w_n
+-\E_q\!\left[\frac{C^s|\gamma^s|}{B^s}\right]\E_q[s_n]\E_q\!\left[\frac{1}{v_n}\right]
+-\E_q\!\left[\frac{A^s}{\sigma^s B^s}\right].
+\label{eq:vb_info_wb}
+\end{equation}
+
+% where \tilde y_n := y_n - C^s\sigma^s|\gamma^s|s_n - A^s v_n and R_n := \sigma^s B^s v_n.
+
+
+(These follow from $\tilde y_n/R_n=y_n/(\sigma^sB^s v_n)-(C^s|\gamma^s|/B^s)\,s_n/v_n-A^s/(\sigma^sB^s)$.)
+Using $\{(w_n,b_n)\}$ (stacked per time index $\tau$), update $q(\bm x_{0:\text{end}})$ via a Gaussian
+Kalman smoother in information form (FFBS-like), with the same evolution model as in the Gibbs step.
+
+\subsubsection*{CAVI step 4: $q(W)$ or $q(W_t)$ (inverse-Wishart)}
+Update $q(W)$ or $q(W_t)$ using the inverse-Wishart family, replacing innovation outer-products by their
+expectations under $q(\text{states})$ (e.g., $\E_q[(\bm\theta_t-\bm G_t\bm\theta_{t-1})(\bm\theta_t-\bm G_t\bm\theta_{t-1})^\T]$).
+
+\subsubsection*{CAVI step 5: $q(\sigma^s,\gamma^s)$ (joint; kernel up to proportionality)}
+For each source $s$, the optimal joint variational factor satisfies
+\begin{equation}
+q^*(\sigma^s,\gamma^s)\ \propto\
+\exp\!\left(\E_{q(\text{others})}\big[\log p(\text{augmented joint})\big]\right),
+\qquad \sigma^s>0,\ \gamma^s\in(L,U).
+\label{eq:vb_qsigmagamma_def}
+\end{equation}
+
+\noindent Here $\E_{q(\text{others})}$ denotes expectation with respect to all variational factors except $(\sigma^s,\gamma^s)$.
+
+\noindent Also, consider $N_s := |\mathcal{I}_s|$.
+
+And equivalently (dropping constants w.r.t.\ $(\sigma^s,\gamma^s)$),
+\begin{align}
+q^*(\sigma^s,\gamma^s)
+\propto\;&
+\1(L<\gamma^s<U)\;
+\IG(\sigma^s\mid a_\sigma,b_\sigma)\;
+t_{(L,U)}(\gamma^s\mid m_\gamma,s_\gamma;\nu_\gamma)\nonumber\\
+&\times
+(\sigma^s)^{-N_s}\exp\!\left(-\frac{\sum_{n\in\mathcal{I}_s}\E_q[v_n]}{\sigma^s}\right)
+\prod_{n\in\mathcal{I}_s}
+(\sigma^s B^s)^{-1/2}
+\exp\!\left(
+-\frac{1}{2}\E_q\!\left[\frac{(y_n-\eta_n-A^s v_n-C^s\sigma^s|\gamma^s|s_n)^2}{\sigma^s B^s v_n}\right]
+\right),
+\label{eq:vb_qsigmagamma_kernel}
+\end{align}
+
+where the expectation is over $q(\eta_n)\,q(v_n)\,q(s_n)$ and $A^s,B^s,C^s$ are treated as functions of $\gamma^s$.
+A convenient evaluable expansion is obtained by writing, for each $n$,
+\begin{align}
+\E_q\!\left[\frac{(y_n-\eta_n-A^s v_n-C^s\sigma^s|\gamma^s|s_n)^2}{\sigma^s B^s v_n}\right]
+=\;&
+\frac{1}{\sigma^s B^s}\left(
+\E_q[(y_n-\eta_n)^2]\E_q\!\left[\frac{1}{v_n}\right]
+-2A^s\,\E_q[y_n-\eta_n]
++(A^s)^2\E_q[v_n]\right)\nonumber\\
+	&-\frac{2C^s|\gamma^s|}{B^s}\left(
+	\E_q[s_n]\E_q[y_n-\eta_n]\E_q\!\left[\frac{1}{v_n}\right]
+	-A^s\,\E_q[s_n]\right)\nonumber\\
+	&\quad+\frac{\sigma^s (C^s)^2(\gamma^s)^2}{B^s}\;\E_q[s_n^2]\E_q\!\left[\frac{1}{v_n}\right],
+	\label{eq:vb_quad_expand}
+	\end{align}
+using mean-field independence between $(\eta_n)$, $v_n$, and $s_n$.
+
+\subsection{Closed-form expectations needed in VB}
+
+\subsubsection*{(i) Moments under $q(v_n)=\GIG(\lambda,\chi,\psi)$}
+Let $V\sim\GIG(\lambda,\chi,\psi)$ with density
+$f(v)\propto v^{\lambda-1}\exp\{-\tfrac12(\chi/v+\psi v)\}\1(v>0)$.
+Define $\Delta=\sqrt{\chi\psi}$ and let $K_\nu(\cdot)$ be the modified Bessel function of the second kind.
+Then for any $r\in\R$ (when finite),
+\begin{equation}
+\E[V^r] = \left(\frac{\chi}{\psi}\right)^{r/2}\frac{K_{\lambda+r}(\Delta)}{K_{\lambda}(\Delta)}.
+\label{eq:gig_moment_general}
+\end{equation}
+In particular,
+\begin{equation}
+\E[V]=\left(\frac{\chi}{\psi}\right)^{1/2}\frac{K_{\lambda+1}(\Delta)}{K_\lambda(\Delta)},
+\qquad
+\E\!\left[\frac{1}{V}\right]=\left(\frac{\psi}{\chi}\right)^{1/2}\frac{K_{\lambda-1}(\Delta)}{K_\lambda(\Delta)}.
+\label{eq:gig_moments_1}
+\end{equation}
+For the log-moment,
+\begin{equation}
+\E[\log V] = \frac12\log\!\left(\frac{\chi}{\psi}\right) + \frac{\partial}{\partial\lambda}\log K_\lambda(\Delta),
+\label{eq:gig_log_moment}
+\end{equation}
+where $\partial_\lambda \log K_\lambda(\Delta)$ is computed numerically.
+
+\subsubsection*{(ii) Moments under $q(s_n)=\N^+(m,V)$ (truncation to $(0,\infty)$)}
+Let $S\sim\N^+(m,V)$ with $V>0$ and set $u=m/\sqrt{V}$.
+Define the inverse Mills ratio $\kappa(u):=\phiN(u)/\PhiN(u)$.
+Then
+\begin{equation}
+\E[S]=m+\sqrt{V}\,\kappa(u),
+\qquad
+\E[S^2]=m^2+V+m\sqrt{V}\,\kappa(u),
+\qquad
+\Var(S)=V\Big(1-u\,\kappa(u)-\kappa(u)^2\Big).
+\label{eq:truncnorm_moments}
+\end{equation}
+
+\subsubsection*{(iii) Gaussian state-induced moments for $\eta_n$}
+	If $q(\bm x_\tau)=\N(\bm m_\tau,\bm C_\tau)$ and $\eta_n=h_n^\T \bm x_{\tau(n)}$, then
+	\begin{equation}
+	\begin{aligned}
+	\E_q[\eta_n] &= h_n^\T \bm m_{\tau(n)},\\
+	\Var_q(\eta_n) &= h_n^\T \bm C_{\tau(n)} h_n,\\
+	\E_q[(y_n-\eta_n)] &= y_n-\E_q[\eta_n],\\
+	\E_q[(y_n-\eta_n)^2] &= (y_n-\E_q[\eta_n])^2+\Var_q(\eta_n).
+	\end{aligned}
+	\label{eq:eta_moments}
+	\end{equation}
+
+\subsubsection*{(iv) Useful derived expectations for observation variances}
+For $R_n=\sigma^s B^s v_n$ and $\tilde y_n$ in \eqref{eq:pseudo_obs_alg}, under mean-field,
+\begin{equation}
+\E_q\!\left[\frac{1}{R_n}\right]=\E_q\!\left[\frac{1}{\sigma^s B^s}\right]\E_q\!\left[\frac{1}{v_n}\right],
+\qquad
+\E_q[\log R_n]=\E_q[\log\sigma^s+\log B^s]+\E_q[\log v_n],
+\label{eq:R_moments}
+\end{equation}
+with $\E_q[\log v_n]$ from \eqref{eq:gig_log_moment}.
+The $\E_q[\tilde y_n/R_n]$ quantity used in the Gaussian variational smoother is given in \eqref{eq:vb_info_wb}.
+
+% ===========================
+% NEW SECTION TO INSERT
+% ===========================
+\subsection{State update (trans-dimensional Gaussian block): FFBS for MCMC and RTS smoothing for VB}
+\label{sec:state_ffbs_vb}
+
+This section makes explicit the ``FFBS placeholder'' steps in the Gibbs sampler and in the CAVI update for
+$q(\text{states})$, for the (possibly) \emph{trans-dimensional} state vector $\bm x_\tau\in\R^{p_\tau}$.
+Throughout, $\tau=1,\dots,\mathcal{T}$ denotes the time index of the block being updated (historical or forecast);
+the evolution matrices may be rectangular when dimensions change.
+
+\subsubsection*{Gaussian state-space form (given augmentation)}
+Conditioning on the augmentation variables and parameters in MCMC (or on their VB expectations) yields a Gaussian
+state-space model of the form
+\begin{align}
+\bm x_0 &\sim \N(\bm m_0,\bm C_0), \label{eq:ssm_prior_generic}\\
+\bm x_\tau \mid \bm x_{\tau-1} &\sim \N(\bm G_\tau \bm x_{\tau-1},\bm W_\tau),
+\qquad \bm G_\tau\in\R^{p_\tau\times p_{\tau-1}},\ \bm W_\tau\in\R^{p_\tau\times p_\tau}, \label{eq:ssm_state_generic}\\
+\tilde{\bm y}_\tau \mid \bm x_\tau &\sim \N\!\big(\bm H_\tau^\T \bm x_\tau,\bm R_\tau\big),
+\qquad \bm H_\tau\in\R^{p_\tau\times d_\tau},\ \bm R_\tau\in\R^{d_\tau\times d_\tau}. \label{eq:ssm_obs_generic}
+\end{align}
+Here $d_\tau=|\mathcal{O}_\tau|$ is the number of scalar observations at time $\tau$ (possibly large in Model C).
+In MCMC, $(\tilde{\bm y}_\tau,\bm R_\tau)$ are the stacked pseudo-observations defined in
+\eqref{eq:pseudo_obs_alg} (with $\bm R_\tau$ diagonal).
+In VB, $(\tilde{\bm y}_\tau,\bm R_\tau)$ are replaced by \emph{pseudo-data} constructed from natural parameters
+(see below).
+
+\subsubsection*{MCMC: Kalman simulation smoother / FFBS (exact path draw)}
+Fix all augmentation variables and parameters at their current MCMC values, form $\tilde{\bm y}_\tau$ and $\bm R_\tau$
+(typically diagonal), and sample $\bm x_{0:\mathcal{T}}$ exactly from its Gaussian full conditional.
+
+\paragraph{Forward filter.}
+Define the one-step-ahead (predictive) moments
+\[
+\bm a_\tau := \E(\bm x_\tau\mid \tilde{\bm y}_{1:\tau-1}), \qquad
+\bm P_\tau := \Var(\bm x_\tau\mid \tilde{\bm y}_{1:\tau-1}),
+\]
+and the filtered moments
+\[
+\bm m_\tau := \E(\bm x_\tau\mid \tilde{\bm y}_{1:\tau}), \qquad
+\bm C_\tau := \Var(\bm x_\tau\mid \tilde{\bm y}_{1:\tau}).
+\]
+Initialize $\bm m_0=\bm m_0$, $\bm C_0=\bm C_0$. For $\tau=1,\dots,\mathcal{T}$:
+\begin{align}
+\bm a_\tau &= \bm G_\tau \bm m_{\tau-1}, \label{eq:kf_pred_mean}\\
+\bm P_\tau &= \bm G_\tau \bm C_{\tau-1}\bm G_\tau^\T + \bm W_\tau, \label{eq:kf_pred_cov}\\
+\bm f_\tau &= \bm H_\tau^\T \bm a_\tau,\qquad
+\bm Q_\tau = \bm H_\tau^\T \bm P_\tau \bm H_\tau + \bm R_\tau, \label{eq:kf_forecast}\\
+\bm K_\tau &= \bm P_\tau \bm H_\tau \bm Q_\tau^{-1}, \label{eq:kf_gain}\\
+\bm m_\tau &= \bm a_\tau + \bm K_\tau(\tilde{\bm y}_\tau-\bm f_\tau), \label{eq:kf_filt_mean}\\
+\bm C_\tau &= \bm P_\tau - \bm K_\tau \bm Q_\tau \bm K_\tau^\T. \label{eq:kf_filt_cov}
+\end{align}
+
+\paragraph{Implementation note (historical discounting for $\bm W_\tau$).}
+In the current \texttt{project1} implementation, the historical evolution covariance $\bm W_\tau$ is specialized via
+component-wise discount factors rather than inferred via inverse-Wishart updates.
+Let $\bm P_\tau^{(0)}:=\bm G_\tau \bm C_{\tau-1}\bm G_\tau^\T$.
+For each state-component block $b$ with discount factor $\delta_b\in(0,1)$, set
+\[
+\bm W_{\tau,b}:=\frac{1-\delta_b}{\delta_b}\,\bm P_{\tau,b}^{(0)},
+\qquad
+\bm P_{\tau,b}=\bm P_{\tau,b}^{(0)}+\bm W_{\tau,b}=\frac{1}{\delta_b}\bm P_{\tau,b}^{(0)}.
+\]
+In code this is implemented by a block-diagonal matrix of inflation factors and a Hadamard (element-wise) product.
+
+\paragraph{Implementation note (many independent scalar observations).}
+When $\bm R_\tau$ is diagonal and $d_\tau$ is large, avoid forming/inverting $\bm Q_\tau\in\R^{d_\tau\times d_\tau}$.
+Instead, assimilate observations sequentially:
+for each $o\in\mathcal{O}_\tau$ with scalar pseudo-observation $\tilde y_{\tau,o}$, loading $h_{\tau,o}\in\R^{p_\tau}$,
+and variance $R_{\tau,o}$, update
+\[
+q_{\tau,o}=h_{\tau,o}^\T \bm P h_{\tau,o}+R_{\tau,o},\qquad
+\bm k_{\tau,o}=\bm P h_{\tau,o}/q_{\tau,o},
+\]
+\[
+\bm a\leftarrow \bm a+\bm k_{\tau,o}(\tilde y_{\tau,o}-h_{\tau,o}^\T \bm a),\qquad
+\bm P\leftarrow \bm P-\bm k_{\tau,o}\bm k_{\tau,o}^\T q_{\tau,o},
+\]
+starting from $(\bm a,\bm P)=(\bm a_\tau,\bm P_\tau)$. The final $(\bm a,\bm P)$ equals $(\bm m_\tau,\bm C_\tau)$.
+
+\paragraph{Backward sampling (FFBS).}
+Sample $\bm x_\mathcal{T}\sim \N(\bm m_\mathcal{T},\bm C_\mathcal{T})$.
+For $\tau=\mathcal{T}-1,\dots,0$, define the smoothing gain
+\begin{equation}
+\bm J_\tau := \bm C_\tau \bm G_{\tau+1}^\T \bm P_{\tau+1}^{-1}
+\in\R^{p_\tau\times p_{\tau+1}}. \label{eq:ffbs_J}
+\end{equation}
+Then the exact backward conditional is
+\begin{equation}
+\bm x_\tau \mid \bm x_{\tau+1},\tilde{\bm y}_{1:\mathcal{T}}
+\sim \N(\bm h_\tau,\bm H_\tau),
+\quad
+\bm h_\tau=\bm m_\tau+\bm J_\tau(\bm x_{\tau+1}-\bm a_{\tau+1}),
+\quad
+\bm H_\tau=\bm C_\tau-\bm J_\tau \bm P_{\tau+1}\bm J_\tau^\T,
+\label{eq:ffbs_backward}
+\end{equation}
+which remains valid when $\bm G_{\tau+1}$ is rectangular (trans-dimensional case).
+
+\subsubsection*{VB: Gaussian variational smoother (RTS) for $q(\bm x_{0:\mathcal{T}})$}
+In CAVI, the optimal $q(\bm x_{0:\mathcal{T}})$ is Gaussian because the expected log-joint is quadratic in the states.
+This update can be implemented as a \emph{deterministic} Kalman smoother with pseudo-data constructed from the
+expected natural parameters in \eqref{eq:vb_info_wb}.
+
+\paragraph{Step 0 (construct pseudo-data at each time).}
+For each scalar observation $n=(\tau,o)$ with loading vector $h_{\tau,o}$, define
+\[
+w_{\tau,o}:=\E_q\!\left[\frac{1}{R_{\tau,o}}\right] \;>\;0,
+\qquad
+b_{\tau,o}:=\E_q\!\left[\frac{\tilde y_{\tau,o}}{R_{\tau,o}}\right],
+\]
+as in \eqref{eq:vb_info_wb}. Define the equivalent pseudo-observation and variance
+\begin{equation}
+\bar y_{\tau,o}:=\frac{b_{\tau,o}}{w_{\tau,o}},
+\qquad
+\bar R_{\tau,o}:=\frac{1}{w_{\tau,o}}.
+\label{eq:vb_pseudodata_scalar}
+\end{equation}
+Stack $\bar{\bm y}_\tau=(\bar y_{\tau,o})_{o\in\mathcal{O}_\tau}$ and $\bar{\bm R}_\tau=\diag(\bar R_{\tau,o})$.
+Then the VB state update is equivalent to the Gaussian model
+\[
+\bar{\bm y}_\tau \mid \bm x_\tau \sim \N(\bm H_\tau^\T\bm x_\tau,\bar{\bm R}_\tau),
+\]
+because this reproduces the same linear and quadratic terms in $\bm x_\tau$:
+$\sum_o b_{\tau,o}\,h_{\tau,o}^\T\bm x_\tau-\tfrac12\sum_o w_{\tau,o}(h_{\tau,o}^\T\bm x_\tau)^2$.
+
+\paragraph{Forward pass (filtering moments of $q$).}
+Run the Kalman filter \eqref{eq:kf_pred_mean}--\eqref{eq:kf_filt_cov} with
+$(\tilde{\bm y}_\tau,\bm R_\tau)$ replaced by $(\bar{\bm y}_\tau,\bar{\bm R}_\tau)$.
+Denote the resulting filtered moments by $(\bm m_\tau,\bm C_\tau)$ and predictive moments by $(\bm a_\tau,\bm P_\tau)$.
+
+\paragraph{Backward pass (RTS smoothing moments of $q$).}
+Initialize $\bm m_\mathcal{T}^\star=\bm m_\mathcal{T}$ and $\bm C_\mathcal{T}^\star=\bm C_\mathcal{T}$.
+For $\tau=\mathcal{T}-1,\dots,0$, define $\bm J_\tau$ as in \eqref{eq:ffbs_J}, and update
+\begin{align}
+\bm m_\tau^\star &= \bm m_\tau + \bm J_\tau(\bm m_{\tau+1}^\star-\bm a_{\tau+1}), \label{eq:rts_mean}\\
+\bm C_\tau^\star &= \bm C_\tau + \bm J_\tau(\bm C_{\tau+1}^\star-\bm P_{\tau+1})\bm J_\tau^\T. \label{eq:rts_cov}
+\end{align}
+Then $q(\bm x_\tau)=\N(\bm m_\tau^\star,\bm C_\tau^\star)$ for all $\tau$.
+
+\paragraph{Lag-one covariance and innovations (needed for VB updates of $\bm W_\tau$).}
+The smoothed lag-one covariance is available in closed form:
+\begin{equation}
+\Cov_q(\bm x_\tau,\bm x_{\tau+1})=\bm C_{\tau,\tau+1}^\star
+=\bm J_\tau\,\bm C_{\tau+1}^\star
+\in\R^{p_\tau\times p_{\tau+1}}.
+\label{eq:rts_lag1_cov}
+\end{equation}
+Let $\bm M_\tau^\star:=\bm C_\tau^\star+\bm m_\tau^\star(\bm m_\tau^\star)^\T$ and
+$\bm M_{\tau,\tau-1}^\star:=\Cov_q(\bm x_\tau,\bm x_{\tau-1})+\bm m_\tau^\star(\bm m_{\tau-1}^\star)^\T
+=\big(\bm C_{\tau-1,\tau}^\star\big)^\T+\bm m_\tau^\star(\bm m_{\tau-1}^\star)^\T$.
+Then the expected innovation outer-product is
+\begin{align}
+\E_q\!\Big[(\bm x_\tau-\bm G_\tau \bm x_{\tau-1})(\bm x_\tau-\bm G_\tau \bm x_{\tau-1})^\T\Big]
+=\;&
+\bm M_\tau^\star
+-\bm G_\tau \bm M_{\tau-1,\tau}^\star
+-\bm M_{\tau,\tau-1}^\star \bm G_\tau^\T
++\bm G_\tau \bm M_{\tau-1}^\star \bm G_\tau^\T,
+\label{eq:vb_innov_second_moment}
+\end{align}
+which can be plugged into the inverse-Wishart updates in CAVI step 4.
+
+\paragraph{Implementation note (forecast-period $\bm W_\tau$ plug-in update).}
+In the current \texttt{project1} implementation, forecast-period evolution covariances are updated by a shrinkage-stabilized
+plug-in rather than the inverse-Wishart CAVI update:
+\begin{equation}
+\widehat{\bm W}_{\tau}
+\leftarrow
+\frac{\epsilon}{\epsilon+1}\,c\,\widehat{\bm W}_{T}
+\;+\;
+\frac{1}{\epsilon+1}\,\widehat{\bm\Omega}_{\tau},
+\label{eq:forecast_W_plugin}
+\end{equation}
+where $\widehat{\bm W}_{T}$ is the (discount-implied) historical covariance at the terminal fit time $T$,
+$c>0$ is a fixed scale factor, and $\widehat{\bm\Omega}_{\tau}$ is a moment-based innovation estimate computed from the
+smoothed state moments. In the reference code, $\epsilon$ corresponds to \texttt{TT}, $c$ to \texttt{c\_factor},
+$\widehat{\bm W}_T$ to \texttt{W\_T} returned by the Kalman routine, and $\widehat{\bm\Omega}_\tau$ to the matrix
+\texttt{ww} constructed inside the forecast covariance update loop.
+
+\paragraph{Where this plugs in.}
+In the Gibbs sampler, replace step (3) \eqref{eq:gibbs_ffbs_placeholder} by the forward-filter/backward-sampler
+equations \eqref{eq:kf_pred_mean}--\eqref{eq:ffbs_backward}.
+In VB, replace CAVI step 3 by \eqref{eq:vb_pseudodata_scalar} followed by the deterministic filter/smoother
+\eqref{eq:kf_pred_mean}--\eqref{eq:rts_cov}; use \eqref{eq:rts_lag1_cov}--\eqref{eq:vb_innov_second_moment}
+when updating $q(\bm W_\tau)$.
+
+% ===========================
+% NEW SECTION TO INSERT
+% ===========================
+\subsection{Laplace--Delta approximation for \texorpdfstring{$q(\sigma^s,\gamma^s)$}{q(sigma(s),gamma(s))} and ELBO contributions}
+\label{sec:laplace_delta_elbo}
+
+This subsection derives (i) an evaluable expected log-joint target for the nonconjugate factor
+$q(\sigma^s,\gamma^s)$ and (ii) the corresponding ELBO terms. The derivations are \emph{source-wise} and apply
+verbatim to Models A/B/C (including trans-dimensional state blocks) because each datum enters only through
+its scalar linear predictor $\eta_n$ and its variational moments \eqref{eq:eta_moments}.
+
+\subsubsection*{Expected log-joint target for the joint VB factor}
+
+Fix a source $s$ with parameter pair $(\sigma^s,\gamma^s)$ and observation index set $\mathcal{I}_s$.
+For each $n\in\mathcal{I}_s$, let $y_n$ be the scalar datum, $\eta_n$ its linear predictor,
+and $(v_n,s_n)$ the augmentation variables. Define
+$p^s=p(p_0,\gamma^s)$ and the corresponding $A^s=A(p^s)$, $B^s=B(p^s)$, $C^s=C(p^s,\gamma^s)$.
+
+Define the (nonconstant) Laplace target
+\begin{equation}
+f_s(\sigma^s,\gamma^s)
+:=
+\E_{q(\text{others})}\!\big[\log p(\text{augmented joint})\big],
+\qquad \sigma^s>0,\ \gamma^s\in(L,U),
+\label{eq:fs_def}
+\end{equation}
+where the expectation is with respect to all variational factors except $(\sigma^s,\gamma^s)$.
+
+Write the centered residual $\Delta_n := y_n-\eta_n$. The needed state-induced moments are
+\begin{equation}
+m_{\Delta,n}:=\E_q[\Delta_n]=y_n-\E_q[\eta_n],
+\qquad
+S_{\Delta,n}:=\E_q[\Delta_n^2]=(y_n-\E_q[\eta_n])^2+\Var_q(\eta_n),
+\label{eq:delta_moments}
+\end{equation}
+and the needed augmentation moments are $\E_q[v_n]$, $\E_q[1/v_n]$, $\E_q[s_n]$, $\E_q[s_n^2]$
+(from \eqref{eq:gig_moments_1} and \eqref{eq:truncnorm_moments}).
+
+\paragraph{Key quadratic expectation.}
+Using mean-field independence between $\Delta_n$, $v_n$, and $s_n$, and expanding the square,
+\begin{align}
+\E_q\!\left[\frac{(\Delta_n-A^s v_n-C^s\sigma^s|\gamma^s|\,s_n)^2}{\sigma^s B^s v_n}\right]
+=\;&
+\frac{1}{\sigma^s B^s}\left(
+S_{\Delta,n}\E_q\!\left[\frac{1}{v_n}\right]
+-2A^s\,m_{\Delta,n}
++(A^s)^2\E_q[v_n]\right)\nonumber\\
+&-\frac{2C^s|\gamma^s|}{B^s}\left(
+\E_q[s_n]\,m_{\Delta,n}\E_q\!\left[\frac{1}{v_n}\right]
+-A^s\,\E_q[s_n]\right)
++\frac{\sigma^s (C^s)^2(\gamma^s)^2}{B^s}\;\E_q[s_n^2]\E_q\!\left[\frac{1}{v_n}\right].
+\label{eq:quad_expectation_expand_ld}
+\end{align}
+
+\paragraph{Source-wise aggregates (constants w.r.t.\ $(\sigma^s,\gamma^s)$).}
+Define
+\begin{align}
+D_{1,s} &:= \sum_{n\in\mathcal{I}_s} S_{\Delta,n}\,\E_q[1/v_n],&
+D_{2,s} &:= \sum_{n\in\mathcal{I}_s} m_{\Delta,n},&
+D_{3,s} &:= \sum_{n\in\mathcal{I}_s} \E_q[v_n],\nonumber\\
+D_{4,s} &:= \sum_{n\in\mathcal{I}_s} \E_q[s_n]\,m_{\Delta,n}\,\E_q[1/v_n],&
+D_{5,s} &:= \sum_{n\in\mathcal{I}_s} \E_q[s_n],&
+D_{6,s} &:= \sum_{n\in\mathcal{I}_s} \E_q[s_n^2]\,\E_q[1/v_n],\label{eq:D_defs}\\
+V_s &:= \sum_{n\in\mathcal{I}_s} \E_q[v_n],&
+N_s &:= |\mathcal{I}_s|.\nonumber
+\end{align}
+Define the $\gamma^s$-dependent combinations
+\begin{equation}
+K_{1,s}(\gamma^s):=D_{1,s}-2A^s D_{2,s}+(A^s)^2 D_{3,s},
+\qquad
+K_{2,s}(\gamma^s):=D_{4,s}-A^s D_{5,s}.
+\label{eq:K_defs}
+\end{equation}
+
+\paragraph{Closed form for $f_s(\sigma^s,\gamma^s)$ up to an additive constant.}
+Using the priors $\sigma^s\sim \IG(a_\sigma,b_\sigma)$ and $\gamma^s\sim t_{(L,U)}(m_\gamma,s_\gamma;\nu_\gamma)$,
+and dropping terms constant in $(\sigma^s,\gamma^s)$, the target \eqref{eq:fs_def} can be written as
+\begin{align}
+f_s(\sigma^s,\gamma^s)
+=\;&
+\log t_{(L,U)}(\gamma^s\mid m_\gamma,s_\gamma;\nu_\gamma)
+-\Big(a_\sigma+1+\frac{3N_s}{2}\Big)\log\sigma^s
+-\frac{b_\sigma+V_s}{\sigma^s}
+-\frac{N_s}{2}\log B^s \nonumber\\
+&-\frac{K_{1,s}(\gamma^s)}{2\,\sigma^s B^s}
++\frac{C^s|\gamma^s|}{B^s}\,K_{2,s}(\gamma^s)
+-\frac{\sigma^s}{2}\frac{(C^s)^2(\gamma^s)^2}{B^s}\,D_{6,s},
+\label{eq:fs_closed}
+\end{align}
+where $A^s,B^s,C^s$ are understood as functions of $\gamma^s$ through $p^s=p(p_0,\gamma^s)$.
+
+\subsubsection*{Transformation to $\R^2$ and Laplace approximation}
+
+To enforce $\sigma^s>0$ and $\gamma^s\in(L,U)$, use
+\begin{equation}
+u^s := \log\sigma^s \in \R,
+\qquad
+\gamma^s = L + (U-L)\,\pi(\xi^s),
+\qquad
+\pi(\xi)=\frac{1}{1+e^{-\xi}},
+\label{eq:transform_u_xi}
+\end{equation}
+with unconstrained $(u^s,\xi^s)\in\R^2$. The Jacobian is
+
+\paragraph{Numerical note (open interval $\gamma^s\in(L,U)$).}
+Although the logistic map in \eqref{eq:transform_u_xi} targets $\gamma^s\in(L,U)$ for any finite $\xi^s$, in floating-point
+computation one may clip $\pi(\xi^s)$ to $[\varepsilon,1-\varepsilon]$ for tiny $\varepsilon$ to avoid evaluating
+$p(p_0,\gamma^s)$ (hence $A^s,B^s,C^s$) exactly at boundary values where $p$ approaches $0$ or $1$.
+\begin{equation}
+\left|\frac{\partial(\sigma^s,\gamma^s)}{\partial(u^s,\xi^s)}\right|
+= \sigma^s\,(U-L)\,\pi(\xi^s)\big(1-\pi(\xi^s)\big),
+\qquad
+\log|J(u^s,\xi^s)|=u^s+\log(U-L)+\log\pi(\xi^s)+\log(1-\pi(\xi^s)).
+\label{eq:jacobian_u_xi}
+\end{equation}
+Define the transformed objective
+\begin{equation}
+\tilde f_s(u^s,\xi^s) := f_s(e^{u^s},\gamma^s(\xi^s)) + \log|J(u^s,\xi^s)|.
+\label{eq:f_tilde_def}
+\end{equation}
+
+\paragraph{Remark (smoothness at $\gamma^s=0$).}
+Because the mapping $\gamma^s\mapsto(p^s,A^s,B^s,C^s)$ involves $|\gamma^s|$ (and sign indicators in $p(\cdot)$ and $C(\cdot)$),
+$f_s(\sigma^s,\gamma^s)$ need not be twice differentiable at $\gamma^s=0$.
+The Laplace approximation below implicitly assumes the mode $\hat\gamma^s$ lies away from such nonsmooth points.
+Operationally, maximize $\tilde f_s(u,\xi)$ twice: once with $\gamma^s(\xi)\in(L,0)$ and once with $\gamma^s(\xi)\in(0,U)$,
+and keep the maximizer with the larger objective value (if an unconstrained optimizer returns $|\hat\gamma^s|\le\varepsilon$ for small $\varepsilon$,
+rerun using this split optimization).
+
+\paragraph{Laplace approximation (mode and curvature).}
+Let
+\begin{equation}
+(\hat u^s,\hat \xi^s) := \arg\max_{(u,\xi)\in\R^2}\ \tilde f_s(u,\xi),
+\qquad
+\hat \Sigma_s := \Big(-\nabla^2 \tilde f_s(\hat u^s,\hat \xi^s)\Big)^{-1}.
+\label{eq:laplace_mode_cov}
+\end{equation}
+Then the Laplace approximation defines
+\begin{equation}
+q_s(u^s,\xi^s)\approx \N_2\!\big((\hat u^s,\hat \xi^s)^\T,\hat \Sigma_s\big),
+\qquad
+q_s(\sigma^s,\gamma^s)=\frac{q_s(u^s,\xi^s)}{|J(u^s,\xi^s)|}.
+\label{eq:q_u_xi_and_induced}
+\end{equation}
+
+\subsubsection*{Delta-method expectations needed by CAVI}
+
+Many CAVI updates require expectations of the form $\E_q[h(\sigma^s,\gamma^s)]$. Under \eqref{eq:q_u_xi_and_induced},
+define $g(u,\xi):=h(e^{u},\gamma(\xi))$ so that $\E_q[h(\sigma^s,\gamma^s)]=\E_{q_s(u,\xi)}[g(u,\xi)]$.
+With $Z=(u^s,\xi^s)\sim \N(\hat\mu_s,\hat\Sigma_s)$, the (second-order) Delta method gives
+\begin{equation}
+\E_q[h(\sigma^s,\gamma^s)]
+=\E_{q_s(u,\xi)}[g(u,\xi)]
+\approx g(\hat\mu_s) + \frac12\,\tr\!\Big(\nabla^2 g(\hat\mu_s)\,\hat\Sigma_s\Big),
+\qquad \hat\mu_s=(\hat u^s,\hat\xi^s)^\T.
+\label{eq:delta_method_2d}
+\end{equation}
+In particular, for any $a\in\R$,
+\begin{equation}
+\E_q[e^{a u^s}] = \exp\!\Big(a\,\hat u^s + \tfrac12 a^2\,(\hat\Sigma_s)_{uu}\Big)
+\quad\text{(exact under the normal marginal of $u^s$)}.
+\label{eq:exp_moment_exact_u}
+\end{equation}
+
+\paragraph{Functions needed in the earlier CAVI updates.}
+Write $\gamma^s=\gamma^s(\xi^s)$ and $A^s,B^s,C^s$ as functions of $\gamma^s$. The required expectations in
+\eqref{eq:vb_qv}, \eqref{eq:vb_kappa_rho}, \eqref{eq:vb_info_wb}, and \eqref{eq:vb_quad_expand} can be expressed as
+expectations of the following functions of $(u^s,\xi^s)$:
+\begin{align}
+g_{1/(\sigma B)}(u,\xi) &:= \frac{e^{-u}}{B(\gamma(\xi))},&
+g_{A/(\sigma B)}(u,\xi) &:= \frac{A(\gamma(\xi))\,e^{-u}}{B(\gamma(\xi))},&
+g_{A^2/(\sigma B)}(u,\xi) &:= \frac{A(\gamma(\xi))^2\,e^{-u}}{B(\gamma(\xi))},\label{eq:g_list_1}\\
+g_{1/\sigma}(u) &:= e^{-u},&
+g_{C|\gamma|/B}(\xi) &:= \frac{C(\gamma(\xi))\,|\gamma(\xi)|}{B(\gamma(\xi))},&
+g_{AC|\gamma|/B}(\xi) &:= \frac{A(\gamma(\xi))\,C(\gamma(\xi))\,|\gamma(\xi)|}{B(\gamma(\xi))},\label{eq:g_list_2}\\
+g_{\sigma C^2\gamma^2/B}(u,\xi) &:= e^{u}\,\frac{C(\gamma(\xi))^2\,\gamma(\xi)^2}{B(\gamma(\xi))},&
+g_{\log B}(\xi) &:= \log B(\gamma(\xi)).\label{eq:g_list_3}
+\end{align}
+These are evaluated using \eqref{eq:delta_method_2d} (with $g$ depending only on $u$ handled exactly via
+\eqref{eq:exp_moment_exact_u}).
+
+\subsubsection*{ELBO terms involving $(\sigma^s,\gamma^s)$}
+
+Let $\mathcal{L}(q)$ denote the ELBO:
+\[
+\mathcal{L}(q)=\E_q[\log p(\text{all})]-\E_q[\log q(\text{all})].
+\]
+All dependence on the trans-dimensional state enters through the moments of $\eta_n$ in \eqref{eq:eta_moments};
+the $(\sigma^s,\gamma^s)$ contributions are otherwise purely source-wise. For a fixed source $s$, define the
+	ELBO component
+	\begin{equation}
+	\begin{aligned}
+	\mathcal{L}_s^{(\sigma,\gamma)} :=\;&
+	\E_q[\log p(\sigma^s)] + \E_q[\log p(\gamma^s)]
+	+ \sum_{n\in\mathcal{I}_s}\E_q[\log p(v_n\mid\sigma^s)]\\
+	&+ \sum_{n\in\mathcal{I}_s}\E_q[\log p(y_n\mid \eta_n,v_n,s_n,\sigma^s,\gamma^s)]
+	-\E_q[\log q(\sigma^s,\gamma^s)].
+	\end{aligned}
+	\label{eq:elbo_block_def}
+	\end{equation}
+
+\paragraph{(i) Prior terms.}
+With $\sigma^s\sim \IG(a_\sigma,b_\sigma)$,
+\begin{equation}
+\E_q[\log p(\sigma^s)]
+=
+a_\sigma\log b_\sigma-\log\Gamma(a_\sigma)
+-(a_\sigma+1)\E_q[\log\sigma^s]-b_\sigma\,\E_q[1/\sigma^s].
+\label{eq:elbo_sigma_prior}
+\end{equation}
+The $\gamma^s$ prior contribution is
+\begin{equation}
+\E_q[\log p(\gamma^s)]
+=\E_q\!\big[\log t_{(L,U)}(\gamma^s\mid m_\gamma,s_\gamma;\nu_\gamma)\big],
+\label{eq:elbo_gamma_prior}
+\end{equation}
+computed by Delta under $q_s(u^s,\xi^s)$ using $\gamma^s=\gamma^s(\xi^s)$.
+
+\paragraph{(ii) Exponential augmentation term $v_n\mid\sigma^s$.}
+Since $p(v_n\mid\sigma^s)=(1/\sigma^s)\exp(-v_n/\sigma^s)$,
+\begin{equation}
+\E_q[\log p(v_n\mid\sigma^s)]
+=-\E_q[\log\sigma^s]-\E_q[1/\sigma^s]\,\E_q[v_n],
+\label{eq:elbo_v_given_sigma}
+\end{equation}
+using mean-field independence between $v_n$ and $\sigma^s$.
+
+\paragraph{(iii) Gaussian augmented likelihood term.}
+For each $n\in\mathcal{I}_s$,
+\begin{align}
+\E_q[\log p(y_n\mid \eta_n,v_n,s_n,\sigma^s,\gamma^s)]
+=\;&
+-\frac12\log(2\pi)
+-\frac12\E_q[\log\sigma^s]
+-\frac12\E_q[\log B^s]
+-\frac12\E_q[\log v_n]\nonumber\\
+&-\frac12\,\E_q\!\left[\frac{(\Delta_n-A^s v_n-C^s\sigma^s|\gamma^s|\,s_n)^2}{\sigma^s B^s v_n}\right],
+\label{eq:elbo_lik_term}
+\end{align}
+where the final quadratic expectation is given explicitly by \eqref{eq:quad_expectation_expand_ld} and can be
+evaluated using the moments in \eqref{eq:delta_moments} together with the Laplace--Delta expectations
+\eqref{eq:g_list_1}--\eqref{eq:g_list_3}.
+
+\paragraph{(iv) Entropy / variational-normalization term for $q(\sigma^s,\gamma^s)$.}
+Because the Laplace approximation is implemented on $(u^s,\xi^s)$ and then transformed to $(\sigma^s,\gamma^s)$,
+\begin{equation}
+\log q(\sigma^s,\gamma^s)=\log q(u^s,\xi^s)-\log|J(u^s,\xi^s)|,
+\label{eq:q_change_of_vars}
+\end{equation}
+hence
+\begin{equation}
+-\E_q[\log q(\sigma^s,\gamma^s)]
+=
+H\!\big(q_s(u^s,\xi^s)\big) + \E_q[\log|J(u^s,\xi^s)|],
+\qquad
+H\!\big(\N_2(\hat\mu_s,\hat\Sigma_s)\big)=\frac12\log\!\big((2\pi e)^2|\hat\Sigma_s|\big).
+\label{eq:entropy_term_u_xi}
+\end{equation}
+Moreover,
+\begin{equation}
+\E_q[\log|J(u^s,\xi^s)|]
+=
+\E_q[u^s]+\log(U-L)+\E_q[\log\pi(\xi^s)+\log(1-\pi(\xi^s))],
+\label{eq:jacobian_expectation}
+\end{equation}
+where $\E_q[u^s]=\hat u^s$ and the remaining 1D expectation in $\xi^s$ is evaluated by Delta.
+
+\paragraph{Summary (computational form).}
+The Laplace objective $\tilde f_s(u^s,\xi^s)$ in \eqref{eq:f_tilde_def} is evaluated using the closed form
+\eqref{eq:fs_closed} with the aggregates \eqref{eq:D_defs}--\eqref{eq:K_defs}.
+After obtaining $(\hat u^s,\hat\xi^s)$ and $\hat\Sigma_s$, all expectations needed by the remaining CAVI updates
+are computed via \eqref{eq:delta_method_2d} (and \eqref{eq:exp_moment_exact_u} when applicable), and the ELBO
+block contribution \eqref{eq:elbo_block_def} is computed from
+\eqref{eq:elbo_sigma_prior}--\eqref{eq:jacobian_expectation} together with \eqref{eq:elbo_lik_term}.
+
+% ===========================
+% NEW SECTION TO INSERT
+% ===========================
+\section{Full ELBO for the complete mean-field approximation}
+\label{sec:full_elbo}
+
+This section derives the full ELBO for the mean-field factorization used in Section~8,
+\[
+q(\text{all}) = q(\text{states})\,q(\text{all }W\text{ blocks})
+\prod_{s\in\mathcal{S}} q(\sigma^s,\gamma^s)\prod_{n\in\mathcal{I}} q(v_n)\,q(s_n),
+\]
+where $\mathcal{S}$ indexes sources (baseline and forecasters) and $\mathcal{I}=\cup_s \mathcal{I}_s$
+indexes all scalar observations. The nonconjugate $\big(\sigma^s,\gamma^s\big)$-block ELBO contributions
+are given in Section~\ref{sec:laplace_delta_elbo} and are referenced here.
+
+\subsection{Unified indexing for states, transitions, and observations}
+
+Let $\tau=0,1,\dots,\mathcal{T}$ denote the (possibly multi-stage) time index of the state block being updated
+(historical or forecast). Let $\bm x_\tau\in\R^{p_\tau}$ be the trans-dimensional state in
+\eqref{eq:ssm_state_generic}--\eqref{eq:ssm_obs_generic}. Define innovations
+\[
+\bm\varepsilon_\tau := \bm x_\tau - \bm G_\tau \bm x_{\tau-1}\in\R^{p_\tau},
+\qquad \tau=1,\dots,\mathcal{T}.
+\]
+At each time $\tau$, let $\mathcal{O}_\tau$ denote the set of scalar observations present at time $\tau$,
+and for each $o\in\mathcal{O}_\tau$ let $n=(\tau,o)$ be the corresponding scalar index with:
+\[
+y_n\in\R,\qquad \eta_n = h_n^\T \bm x_\tau,\qquad (v_n,s_n)\in\R_+\times\R_+,
+\qquad s(n)\in\mathcal{S}\ \text{(its source)}.
+\]
+Source $s$ has parameters $(\sigma^s,\gamma^s)$ and induced quantities
+$p^s=p(p_0,\gamma^s)$, $A^s=A(p^s)$, $B^s=B(p^s)$, $C^s=C(p^s,\gamma^s)$ as in Section~6.
+
+\subsection{Definition and decomposition of the ELBO}
+
+Let $\mathcal{L}(q)$ be the ELBO:
+\[
+\mathcal{L}(q)=\E_q[\log p(\text{all})]-\E_q[\log q(\text{all})].
+\]
+With the augmented representation \eqref{eq:aug_y}--\eqref{eq:aug_s} and the state model
+\eqref{eq:ssm_prior_generic}--\eqref{eq:ssm_state_generic}, the full ELBO decomposes as
+\begin{equation}
+\mathcal{L}(q)
+=
+\underbrace{\mathcal{L}_{x}(q)}_{\text{states}}
++
+\underbrace{\sum_{b\in\mathcal{B}}\mathcal{L}_{W_b}(q)}_{\text{evolution covariance blocks}}
++
+\underbrace{\sum_{s\in\mathcal{S}}\mathcal{L}_{s}^{(\sigma,\gamma)}(q)}_{\text{Section~\ref{sec:laplace_delta_elbo}}}
++
+\underbrace{\sum_{n\in\mathcal{I}}\mathcal{L}_{n}^{(s\text{-prior})}(q)}_{\text{$s_n\sim\N^+(0,1)$}}
++
+\underbrace{\sum_{n\in\mathcal{I}}\mathcal{H}_{v_n}(q)}_{\text{entropy of $q(v_n)$}}
++
+\underbrace{\sum_{n\in\mathcal{I}}\mathcal{H}_{s_n}(q)}_{\text{entropy of $q(s_n)$}},
+\label{eq:full_elbo_decomp}
+\end{equation}
+where:
+\begin{itemize}
+\item $\mathcal{L}_{s}^{(\sigma,\gamma)}(q)$ is exactly the source-wise block defined in
+\eqref{eq:elbo_block_def} and computed via \eqref{eq:elbo_sigma_prior}--\eqref{eq:jacobian_expectation}
+(using the Laplace--Delta approximation in Section~\ref{sec:laplace_delta_elbo});
+\item $\mathcal{L}_{x}(q)$ and $\mathcal{L}_{W_b}(q)$ are derived below;
+\item $\mathcal{L}_{n}^{(s\text{-prior})}(q)$ and the entropies $\mathcal{H}_{v_n}(q)$, $\mathcal{H}_{s_n}(q)$
+are closed-form given the current variational parameters of $q(v_n)$ and $q(s_n)$.
+\end{itemize}
+
+\subsection{State-block contribution \texorpdfstring{$\mathcal{L}_{x}(q)$}{Lx(q)}}
+
+Assume the prior $\bm x_0\sim\N(\bm m_0,\bm C_0)$ and transitions
+$\bm x_\tau\mid \bm x_{\tau-1},\bm W_\tau\sim\N(\bm G_\tau \bm x_{\tau-1},\bm W_\tau)$ for $\tau\ge 1$.
+Then
+\begin{equation}
+\mathcal{L}_{x}(q)
+:=
+\E_q[\log p(\bm x_0)] + \sum_{\tau=1}^{\mathcal{T}}\E_q[\log p(\bm x_\tau\mid \bm x_{\tau-1},\bm W_\tau)]
+-\E_q[\log q(\bm x_{0:\mathcal{T}})].
+\label{eq:Lx_def}
+\end{equation}
+
+% --- In Section 11, reserve p_0 for the quantile level only.
+%     Use p_{x,0} for the dimension of x_0. ---
+
+\paragraph{(i) Prior term $\E_q[\log p(\bm x_0)]$.}
+Let $q(\bm x_0)=\N(\bm m_0^\star,\bm C_0^\star)$ and let $p_{x,0}:=\dim(\bm x_0)$. Then
+\begin{align}
+\E_q[\log p(\bm x_0)]
+=\;& -\frac{p_{x,0}}{2}\log(2\pi) - \frac12\log|\bm C_0|
+-\frac12\Big\{\tr(\bm C_0^{-1}\bm C_0^\star)
++(\bm m_0^\star-\bm m_0)^\T \bm C_0^{-1}(\bm m_0^\star-\bm m_0)\Big\}.
+\label{eq:elbo_state_prior}
+\end{align}
+
+
+\paragraph{(ii) Transition terms $\E_q[\log p(\bm x_\tau\mid \bm x_{\tau-1},\bm W_\tau)]$.}
+For each $\tau\ge 1$,
+\begin{align}
+\E_q[\log p(\bm x_\tau\mid \bm x_{\tau-1},\bm W_\tau)]
+=\;&
+-\frac{p_\tau}{2}\log(2\pi)
+-\frac12\,\E_q[\log|\bm W_\tau|]
+-\frac12\,\tr\!\Big(\E_q[\bm W_\tau^{-1}]\;\E_q[\bm\varepsilon_\tau\bm\varepsilon_\tau^\T]\Big).
+\label{eq:elbo_state_trans_generic}
+\end{align}
+The innovation second moment $\E_q[\bm\varepsilon_\tau\bm\varepsilon_\tau^\T]$
+is exactly \eqref{eq:vb_innov_second_moment}:
+\[
+\E_q[\bm\varepsilon_\tau\bm\varepsilon_\tau^\T]
+=
+\bm M_\tau^\star
+-\bm G_\tau \bm M_{\tau-1,\tau}^\star
+-\bm M_{\tau,\tau-1}^\star \bm G_\tau^\T
++\bm G_\tau \bm M_{\tau-1}^\star \bm G_\tau^\T,
+\]
+with $\bm M_\tau^\star=\bm C_\tau^\star+\bm m_\tau^\star(\bm m_\tau^\star)^\T$ and
+$\bm M_{\tau,\tau-1}^\star=\Cov_q(\bm x_\tau,\bm x_{\tau-1})+\bm m_\tau^\star(\bm m_{\tau-1}^\star)^\T$.
+(For trans-dimensional $\bm G_\tau\in\R^{p_\tau\times p_{\tau-1}}$, this expression remains valid.)
+
+\paragraph{(iii) Entropy of the Gaussian state factor.}
+Since $q(\bm x_{0:\mathcal{T}})$ is a joint Gaussian on total dimension
+$D:=\sum_{\tau=0}^{\mathcal{T}} p_\tau$,
+\begin{equation}
+-\E_q[\log q(\bm x_{0:\mathcal{T}})]
+=
+H\big(q(\bm x_{0:\mathcal{T}})\big)
+=
+\frac12\Big(D\log(2\pi e) + \log|\bm\Sigma_x^\star|\Big),
+\label{eq:elbo_state_entropy}
+\end{equation}
+where $\bm\Sigma_x^\star$ is the full covariance of the stacked state vector.
+
+\paragraph{Sequential evaluation of $\log|\bm\Sigma_x^\star|$ (block-tridiagonal recursion).}
+The precision $\bm\Lambda_x^\star := (\bm\Sigma_x^\star)^{-1}$ is block-tridiagonal because the expected log-joint
+is quadratic with only nearest-neighbor coupling. Let $\bm\Lambda_{\tau\tau}$ be the diagonal blocks and
+$\bm\Lambda_{\tau,\tau-1}$ the subdiagonal blocks. Then
+\begin{equation}
+\log|\bm\Sigma_x^\star| = -\log|\bm\Lambda_x^\star|
+= -\sum_{\tau=0}^{\mathcal{T}} \log|\bm S_\tau|,
+\qquad
+\bm S_0:=\bm\Lambda_{00},\quad
+\bm S_\tau:=\bm\Lambda_{\tau\tau}-\bm\Lambda_{\tau,\tau-1}\bm S_{\tau-1}^{-1}\bm\Lambda_{\tau-1,\tau}.
+\label{eq:block_tridiag_logdet}
+\end{equation}
+This recursion costs $O(\sum_\tau p_\tau^3)$ and is the standard Schur-complement determinant formula for
+block-tridiagonal matrices; it is the correct ``sequential'' mechanism needed for the state entropy.
+
+\paragraph{Explicit precision blocks (if needed).}
+If the state update uses fixed transition precision $\bar{\bm Q}_\tau:=\E_q[\bm W_\tau^{-1}]$ and
+observation information contributions $w_{\tau,o} h_{\tau,o}h_{\tau,o}^\T$ with
+$w_{\tau,o}=\E_q[1/R_{\tau,o}]$ (cf.\ \eqref{eq:vb_info_wb}), then the blocks are
+\begin{align}
+\bm\Lambda_{00} &= \bm C_0^{-1} + \bm G_1^\T \bar{\bm Q}_1 \bm G_1 + \sum_{o\in\mathcal{O}_0} w_{0,o}\,h_{0,o}h_{0,o}^\T, \nonumber\\
+\bm\Lambda_{\tau\tau} &= \bar{\bm Q}_\tau + \bm G_{\tau+1}^\T \bar{\bm Q}_{\tau+1}\bm G_{\tau+1}
++ \sum_{o\in\mathcal{O}_\tau} w_{\tau,o}\,h_{\tau,o}h_{\tau,o}^\T,\qquad 1\le\tau\le \mathcal{T}-1,\nonumber\\
+\bm\Lambda_{\mathcal{T}\mathcal{T}} &= \bar{\bm Q}_{\mathcal{T}} + \sum_{o\in\mathcal{O}_{\mathcal{T}}} w_{\mathcal{T},o}\,h_{\mathcal{T},o}h_{\mathcal{T},o}^\T, \nonumber\\
+\bm\Lambda_{\tau,\tau-1} &= -\bar{\bm Q}_\tau \bm G_\tau,\qquad
+\bm\Lambda_{\tau-1,\tau} = -\bm G_\tau^\T \bar{\bm Q}_\tau,
+\label{eq:precision_blocks_states}
+\end{align}
+with rectangular $\bm G_\tau$ allowed (hence rectangular off-diagonal blocks).
+
+\subsection{Inverse-Wishart block contributions \texorpdfstring{$\mathcal{L}_{W_b}(q)$}{LWb(q)}}
+
+Let $\bm W_b\in\R^{p_b\times p_b}$ be any covariance block with prior $\bm W_b\sim\IW(\nu_{0,b},\bm S_{0,b})$
+(density proportional to $|\bm W_b|^{-(\nu_{0,b}+p_b+1)/2}\exp\{-\tfrac12\tr(\bm S_{0,b}\bm W_b^{-1})\}$).
+Let the variational factor be $q(\bm W_b)=\IW(\nu_{b},\bm S_{b})$.
+Define the block ELBO contribution
+\begin{equation}
+\mathcal{L}_{W_b}(q)
+:=
+\E_q[\log p(\bm W_b)] - \E_q[\log q(\bm W_b)].
+\label{eq:LW_def}
+\end{equation}
+
+\paragraph{Useful expectations under $q(\bm W_b)=\IW(\nu_b,\bm S_b)$.}
+Let $p=p_b$ for readability. Then
+\begin{align}
+\E_q[\bm W_b^{-1}] &= \nu_b\,\bm S_b^{-1}, \label{eq:iw_Einv}\\
+\E_q[\log|\bm W_b|] &= \log|\bm S_b| - \sum_{i=1}^{p}\psi\!\Big(\frac{\nu_b+1-i}{2}\Big) - p\log 2,
+\label{eq:iw_Elogdet}
+\end{align}
+where $\psi(\cdot)$ is the digamma function and $\Gamma_p(\cdot)$ is the multivariate gamma function.
+
+\paragraph{Expected log-densities.}
+Write the inverse-Wishart log normalizer as
+\[
+\log c_{\IW}(\nu,\bm S)
+=
+\frac{\nu}{2}\log|\bm S| - \frac{\nu p}{2}\log 2 - \log\Gamma_p(\nu/2).
+\]
+Then
+\begin{align}
+\E_q[\log p(\bm W_b)]
+&=
+\log c_{\IW}(\nu_{0,b},\bm S_{0,b})
+-\frac{\nu_{0,b}+p_b+1}{2}\,\E_q[\log|\bm W_b|]
+-\frac12\,\tr\!\big(\bm S_{0,b}\,\E_q[\bm W_b^{-1}]\big), \label{eq:elbo_iw_prior}\\
+\E_q[\log q(\bm W_b)]
+&=
+\log c_{\IW}(\nu_{b},\bm S_{b})
+-\frac{\nu_{b}+p_b+1}{2}\,\E_q[\log|\bm W_b|]
+-\frac12\,\tr\!\big(\bm S_{b}\,\E_q[\bm W_b^{-1}]\big). \label{eq:elbo_iw_q}
+\end{align}
+Plugging \eqref{eq:iw_Einv}--\eqref{eq:iw_Elogdet} into \eqref{eq:elbo_iw_prior}--\eqref{eq:elbo_iw_q}
+gives a closed form for $\mathcal{L}_{W_b}(q)$.
+
+\subsection{Latent truncation prior for \texorpdfstring{$s_n$}{sn}: \texorpdfstring{$\mathcal{L}_{n}^{(s\text{-prior})}(q)$}{Ln(s-prior)(q)}}
+
+The augmentation prior is $s_n\sim\N^+(0,1)$ with density $p(s)=2\phiN(s)\1(s>0)$.
+Thus,
+\begin{equation}
+\mathcal{L}_{n}^{(s\text{-prior})}(q)
+:= \E_q[\log p(s_n)]
+=
+\log 2 - \frac12\log(2\pi) - \frac12\,\E_q[s_n^2],
+\label{eq:elbo_s_prior}
+\end{equation}
+where $\E_q[s_n^2]$ is available from \eqref{eq:truncnorm_moments}.
+
+\subsection{Entropy of \texorpdfstring{$q(v_n)$}{q(vn)} (GIG) and \texorpdfstring{$q(s_n)$}{q(sn)} (truncated Normal)}
+
+\paragraph{Entropy of $q(v_n)=\GIG(\lambda,\chi_n,\psi_{s(n)})$.}
+Let $q(v)=\GIG(\lambda,\chi,\psi)$ with density
+\[
+q(v)=\frac{(\psi/\chi)^{\lambda/2}}{2K_\lambda(\Delta)}\,v^{\lambda-1}
+\exp\!\left\{-\frac12\Big(\frac{\chi}{v}+\psi v\Big)\right\}\1(v>0),
+\qquad \Delta=\sqrt{\chi\psi}.
+\]
+Then
+\begin{align}
+\mathcal{H}_{v_n}(q)
+:=
+-\E_q[\log q(v_n)]
+=\;&
+\log\!\big(2K_\lambda(\Delta_n)\big)
+-\frac{\lambda}{2}\log\!\Big(\frac{\psi_{s(n)}}{\chi_n}\Big)
+-(\lambda-1)\E_q[\log v_n]
++\frac12\Big(\chi_n\,\E_q[1/v_n] + \psi_{s(n)}\,\E_q[v_n]\Big),
+\label{eq:entropy_gig}
+\end{align}
+where $\E_q[v_n]$, $\E_q[1/v_n]$, and $\E_q[\log v_n]$ are given by
+\eqref{eq:gig_moments_1}--\eqref{eq:gig_log_moment}.
+
+\paragraph{Entropy of $q(s_n)=\N^+(m_n,V_n)$.}
+Let $S\sim \N^+(m,V)$ with $u=m/\sqrt{V}$ and $\kappa(u)=\phiN(u)/\PhiN(u)$.
+Then
+\begin{equation}
+\mathcal{H}_{s_n}(q)
+:=
+-\E_q[\log q(s_n)]
+=
+\frac12\log(2\pi V_n)
++\frac12\big(1-u_n\kappa(u_n)\big)
++\log\PhiN(u_n),
+\qquad u_n=\frac{m_n}{\sqrt{V_n}},
+\label{eq:entropy_truncnorm}
+\end{equation}
+which reduces to the usual Gaussian entropy $\tfrac12\log(2\pi eV)$ as $u\to\infty$.
+
+\subsection{Nonconjugate \texorpdfstring{$(\sigma^s,\gamma^s)$}{(sigma(s),gamma(s))} contribution}
+
+For each source $s\in\mathcal{S}$, the complete ELBO contribution of the nonconjugate factor
+$q(\sigma^s,\gamma^s)$ (including the $\sigma$ and $\gamma$ priors, the exponential term $v_n\mid\sigma^s$,
+the augmented Gaussian likelihood term, and the transformed-normal entropy) is exactly
+$\mathcal{L}_{s}^{(\sigma,\gamma)}$ defined in \eqref{eq:elbo_block_def} and evaluated using
+Section~\ref{sec:laplace_delta_elbo}.
+
+\paragraph{Final assembly.}
+Compute $\mathcal{L}_{x}(q)$ via \eqref{eq:Lx_def} using
+\eqref{eq:elbo_state_prior}, \eqref{eq:elbo_state_trans_generic}, and \eqref{eq:elbo_state_entropy}
+(with $\log|\bm\Sigma_x^\star|$ from \eqref{eq:block_tridiag_logdet}).
+Compute each $\mathcal{L}_{W_b}(q)$ via \eqref{eq:LW_def} and \eqref{eq:elbo_iw_prior}--\eqref{eq:elbo_iw_q}.
+Compute $\sum_s \mathcal{L}_{s}^{(\sigma,\gamma)}(q)$ via Section~\ref{sec:laplace_delta_elbo}.
+Compute $\sum_n \mathcal{L}_{n}^{(s\text{-prior})}(q)$ via \eqref{eq:elbo_s_prior}.
+Compute $\sum_n \mathcal{H}_{v_n}(q)$ and $\sum_n \mathcal{H}_{s_n}(q)$ via
+\eqref{eq:entropy_gig}--\eqref{eq:entropy_truncnorm}.
+Then \eqref{eq:full_elbo_decomp} gives the full ELBO.
+
+\end{document}
