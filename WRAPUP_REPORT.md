@@ -73,3 +73,16 @@ Only univariate Model A remains in the active manuscript, code path, and validat
 ## Deferred items
 
 - None identified that were required for this wrap-up.
+
+## Main merge addendum (2026-02-08)
+
+- Merged into `main` with merge commit:
+  - `6a49edc` Merge univariate Model A wrap-up (2026-02-08)
+- Post-merge verification on `main`:
+  - `make test` -> PASS
+  - `make validate` -> PASS
+  - `Rscript scripts/run_univ_example.R` -> PASS
+  - `make latex` -> PASS
+  - `scripts/build_latex.sh main.tex` -> PASS
+- LaTeX build log:
+  - `logs/latex/main.log`

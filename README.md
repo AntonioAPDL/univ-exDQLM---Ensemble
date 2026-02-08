@@ -30,6 +30,12 @@ make validate
 make latex
 ```
 
+## Overleaf integration
+
+- Overleaf should pull from the `main` branch of this repository.
+- The manuscript entrypoint is `main.tex`.
+- Build locally with `make latex` (or `scripts/build_latex.sh main.tex`) and use the log at `logs/latex/main.log` for diagnostics.
+
 ## Notes
 
 - Build logs are written to `logs/latex/`.
