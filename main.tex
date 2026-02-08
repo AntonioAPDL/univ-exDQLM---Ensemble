@@ -20,8 +20,8 @@
 \newcommand{\Var}{\mathrm{Var}}
 \newcommand{\Cov}{\mathrm{Cov}}
 \newcommand{\logit}{\mathrm{logit}}
-\newcommand{\phiN}{\varphi}
-\newcommand{\PhiN}{\Phi}
+\newcommand{\phiN}[1]{\frac{1}{\sqrt{2\pi}}\exp\!\left(-\frac{#1^2}{2}\right)}
+\newcommand{\PhiN}[1]{\Phi\!\left(#1\right)}
 \newcommand{\tr}{\mathrm{tr}}
 
 \title{Canonical Univariate exDQLM (Model A): Full Derivations for MCMC and VB}
@@ -116,7 +116,7 @@ s_t\sim\N^+(0,1),\label{eq:aug_vs_priors}
 \end{align}
 where
 \begin{align}
-g(\gamma)&=2\,\PhiN(-|\gamma|)\exp(\gamma^2/2),\label{eq:g_gamma}\\
+g(\gamma)&=2\,\PhiN{-|\gamma|}\exp(\gamma^2/2),\label{eq:g_gamma}\\
 p(p_0,\gamma)&=\1(\gamma<0)+\frac{p_0-\1(\gamma<0)}{g(\gamma)},\label{eq:p_map}\\
 A(p)&=\frac{1-2p}{p(1-p)},\qquad
 B(p)=\frac{2}{p(1-p)},\qquad
@@ -307,7 +307,7 @@ p(\sigma\mid\text{rest})
 \sigma^{-(a_\sigma+1+\frac{3T}{2})}
 \exp\!\left(
 -\frac{1}{\sigma}\left[b_\sigma+\sum_{t=1}^T v_t+\sum_{t=1}^T\frac{(y_t^\circ)^2}{2B(p)v_t}\right]
--\sigma\left[\sum_{t=1}^T\frac{\nu_t^2}{2B(p)v_t}\right]
+-\sigma\left[\sum_{t=1}^T\frac{u_t^2}{2B(p)v_t}\right]
 \right).
 \label{eq:cond_sigma_kernel}
 \end{align}
@@ -321,7 +321,7 @@ with
 \begin{align}
 \lambda_\sigma &= -(a_\sigma+\tfrac{3T}{2}),\nonumber\\
 \chi_\sigma &= 2b_\sigma+2\sum_{t=1}^T v_t+\sum_{t=1}^T\frac{(y_t^\circ)^2}{B(p)v_t},\nonumber\\
-\psi_\sigma &= \sum_{t=1}^T\frac{\nu_t^2}{B(p)v_t}.\nonumber
+\psi_\sigma &= \sum_{t=1}^T\frac{u_t^2}{B(p)v_t}.\nonumber
 \end{align}
 
 \subsection{Metropolis--Hastings update for gamma}\label{sec:mh_gamma}
@@ -524,7 +524,7 @@ so
 
 \paragraph{Truncated normal moments.}
 For $S\sim\N^+(m,V)$, define $\tau=\sqrt V$, $\alpha=m/\tau$, and
-$\rho(\alpha)=\phiN(\alpha)/\PhiN(\alpha)$ (Mills ratio). Then
+$\rho(\alpha)=\phiN{\alpha}/\PhiN{\alpha}$ (Mills ratio). Then
 \begin{align}
 \E[S] &= m + \tau\rho(\alpha),\label{eq:tn_Es}\\
 \E[S^2] &= V + m^2 + m\tau\rho(\alpha).
@@ -757,8 +757,8 @@ $\E[\log p(\gamma)]$ is computed under the Laplace--Delta block by quadrature in
 \label{eq:Hv}\\
 \mathcal H_{s_t}
 =
-&\frac12\log(2\pi e V_{s,t}) + \log\PhiN\!\left(\frac{m_{s,t}}{\sqrt{V_{s,t}}}\right)
--\frac12\frac{m_{s,t}}{\sqrt{V_{s,t}}}\frac{\phiN(m_{s,t}/\sqrt{V_{s,t}})}{\PhiN(m_{s,t}/\sqrt{V_{s,t}})},
+&\frac12\log(2\pi e V_{s,t}) + \log\PhiN{m_{s,t}/\sqrt{V_{s,t}}}
+-\frac12\frac{m_{s,t}}{\sqrt{V_{s,t}}}\frac{\phiN{m_{s,t}/\sqrt{V_{s,t}}}}{\PhiN{m_{s,t}/\sqrt{V_{s,t}}}},
 \label{eq:Hs}\\
 \mathcal H_{\alpha}
 =
